@@ -22,9 +22,15 @@ use vars qw($VERSION @ISA @EXPORT_OK %EXPORT_TAGS);
 require Exporter;
 
 @ISA = qw(Exporter);
-$VERSION = '1.01';
+$VERSION = '1.05';
 
 use strict;
+
+# Get more portable handling of chdir plus $PWD tracking, etc.
+use autouse 'Cwd' => qw(chdir fastcwd);
+
+# Similarly for filename parsing.
+use autouse 'File::Basename' => qw(fileparse basename dirname);
 
 # We could use this but it seems like a pretty heavyweight operation.
 # use Config.pm;
@@ -34,12 +40,13 @@ $ENV{LOGNAME} ||= lc $ENV{USERNAME};
 $ENV{HOME} ||= "$ENV{HOMEDRIVE}/$ENV{HOMEPATH}";
 
 use vars qw($Win32 $Wrapper $CCHome $ClearCmd $DevNull
-	    $Editor $TmpDir $Setuid);
+	    $Editor $TmpDir $Setuid %Vgra);
 
 @EXPORT_OK = qw(Dbg Die Warn Exec System Backtick Prompt
 	        ReadOptions StripOptions RemainingOptions
+		chdir fastcwd fileparse basename dirname
 	        $Win32 $Wrapper $CCHome $ClearCmd $DevNull
-	        $Editor $TmpDir $Setuid);
+	        $Editor $TmpDir $Setuid %Vgra);
 %EXPORT_TAGS = ( 'all' => [@EXPORT_OK] );
 
 # To avoid having to use an RE on $^O each time or use Config.
@@ -67,6 +74,11 @@ $0 =~ s%\\%/%g if $Win32;
 
 # Remember if we're in a setuid situation.
 $Setuid = ($< != $>) unless $Win32;
+
+# Set up the hash %Vgra as a reverse lookup into @ARGV for
+# ease in checking whether a given option was used.
+%Vgra = ();
+for (0..$#ARGV) { $Vgra{$ARGV[$_]} = $_ }
 
 # Make our best guess at where the clearcase executables are installed.
 $CCHome = $ENV{ATRIAHOME} || ($Win32 ? 'C:/atria' : '/usr/atria');
@@ -147,15 +159,20 @@ sub Exec
 
 =item * System(LIST)
 
-A wrapper for system() which handles printing of debug msgs.
-Also masks off all the meaningless bits.
+A wrapper for system() which handles printing of debug tracing.
+Dies automatically on command failure in void context.
 
 =cut
 
 sub System
 {
    Dbg("system: @_", 1);
-   return system(@_) & 0xffff;
+   my $rc = system(@_) & 0xffff;
+   if (defined wantarray) {
+      return $rc;
+   } else {
+      exit $rc>>8|$rc if $rc;
+   }
 }
 
 =item * Backtick(LIST)
@@ -233,15 +250,21 @@ sub ReadOptions
 =item 2. StripOptions(\@ARGV, LIST)
 
 Parse and strip the specified options from the referenced \@ARGV,
-throwing away their values.
+returning the stripped elements as a list (retaining order).
 
 =cut
 
 sub StripOptions
 {
    my $r_argv = shift; # not used, here for consistency with the other funcs.
+   my @orig = @ARGV;
    my %null = ();
    Getopt::Long::GetOptions(\%null, @_);
+   my %vgra = ();
+   for (0..$#ARGV) { $vgra{$ARGV[$_]} = 1 }
+   my @stripped = ();
+   for (@orig) { push(@stripped, $_) unless $vgra{$_} }
+   return @stripped;
 }
 
 =item 3. RemainingOptions(\@ARGV, LIST)

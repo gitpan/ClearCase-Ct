@@ -2,7 +2,10 @@ Changes
 MANIFEST
 Makefile.PL
 README
+TODO
 Ct.pm
 lib/ClearCase/Ct/Profile.pm
+Profile.html
 cleartool.plx
 test.pl
+SiteProfile.pm.sample

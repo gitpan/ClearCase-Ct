@@ -1,0 +1,15 @@
+#!/usr/local/bin/perl	# for file(1) only, not executable as is
+
+# Where we keep the (NT-based) view profiles.
+local $ProfileStgRoot = '/net/vobsvr1/vbstore/ClearCase View Profiles';
+
+# Site-specific preference for where we like to base our views. If an
+# appropriate local area exists, use it - otherwise use viewsvr1's.
+local $ViewStgRoot = '/vwstore/workspaces';
+$ViewStgRoot = "/net/viewsvr1$ViewStgRoot" unless -d $ViewStgRoot;
+
+######################### General Profile #################################
+Require('ClearCase/Ct/Profile.pm', @ARGV) || return 0;
+##################### End of General Profile ##############################
+
+1;

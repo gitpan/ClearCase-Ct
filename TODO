@@ -1,0 +1,5 @@
+Brad Appleton has suggested that the native Perl syntax used for the
+~/.ct_profile.pl is too complex for the average user, and has described
+a method he's had some success for using a simpler syntax without a
+large speed penalty. I may get around to at least analyzing his
+suggestion and maybe even implementing it at some point.

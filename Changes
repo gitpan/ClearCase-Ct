@@ -32,3 +32,11 @@ Revision history for Perl extension ClearCase::Ct.
 1.01  Tue Sep  1 16:32:10 EDT 1998
 	- improved portability to NT
 	- added edcmnt -new
+
+1.04  Wed Sep  2 13:44:12 EDT 1998
+	- skipped to 1.04 to align version numbers
+	- added 'edit -ci' option
+
+1.05  Tue Sep 22 11:35:59 EDT 1998
+	- minor tweaks in documentation
+	- added code to change mktype defaults to -global

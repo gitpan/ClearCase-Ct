@@ -2,6 +2,9 @@ use ExtUtils::MakeMaker;
 use File::Copy;
 my $Name;
 
+# Generate an HTML file from the Profile.pm POD.
+system qw(pod2html Profile.pm --outfile=Profile.html);
+
 # Hack to allow installer to choose name of front-end cmd.
 if (! -f Makefile) {
    print qq(
@@ -37,6 +40,6 @@ WriteMakefile(
 	  DIST_DEFAULT => 'all tardist',
 	  SUFFIX => ".gz",
 	  COMPRESS => "gzip -f",
-	  POSTOP => 'cleartool unco -rm cleartool.plx Profile.pm && rm cleartool.plx.orig Profile.pm.orig ||:',
+	  POSTOP => 'ct unco -rm cleartool.plx && rm cleartool.plx.orig ||:',
     },
 );

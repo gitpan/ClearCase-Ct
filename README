@@ -100,9 +100,11 @@ In fact you could truncate your installed Profile.pm to zero-length and
 the wrapper program wouldn't be broken; you'd just lose your
 customizations. Or rather my customizations.
 
-There are a few hard-wired constants in Profile.pm which you will
-certainly need to change for your site in order for those features to
-work, e.g. $ViewStgRoot and $ProfileStgRoot.
+There are a couple of hard-wired constants referred to in Profile.pm
+which you would need to define for your site in order for those features
+to work: $ViewStgRoot and $ProfileStgRoot. Not defining them doesn't
+break anything else, you just won't be able to default the view-storage
+location or use view profiles on Unix.
 
 Also note that ct also looks for a file called ~/.ct_profile.pl
 containing personal customizations. No sample of this is delivered; the
@@ -171,8 +173,8 @@ comment flags from an unco.
 
 -> There's also some basic support for using ClearCase View Profiles on
 Unix systems, which as of CC 3.2 is unsupported natively. This depends
-on storing your profiles in a Unix-accessible filesystem.  See the
-source.
+on storing your profiles in a Unix-accessible filesystem and pointing
+$ProfileStgRoot to that place. See the source for details.
 
 INSTALLING
 ----------
@@ -198,7 +200,7 @@ and ct should find the local version for as long as that EV is in effect.
 Of course, to complete the installation you'll need to put ct somewhere
 on your path and remove the 'ct' alias if you have one.
 
-*Remember to keep your Profile.pm under source control!* Since it's
+*Remember to keep your Profile.pm under source control!* Since it may be
 locally modified, you don't want to lose your changes when installing
 a newer version of this module!!
 
@@ -226,6 +228,13 @@ supplied explicitly, you know enough to set up a profile. To do more
 complex things it's a good idea to become very familiar with
 Getopt::Long, since it's used heavily to selectively parse the command
 line.
+
+In order to separate generally-useful code from internal-use-only
+features, I added a hack such that if a SiteProfile.pm is found it's
+used instead of Profile.pm. A sample of how to use this to wrap local
+constants around general logic is provided in SiteProfile.pm.sample. Or
+users may just choose to install their modified Profile.pm as
+SiteProfile.pm, where it won't be disturbed by updates to the module.
 
 SELF-DOCUMENTATION
 ------------------

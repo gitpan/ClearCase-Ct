@@ -48,7 +48,7 @@ When a profile is C<require>d, the special variable C<$_> is set to the
 name of the command and C<@_> is a copy of @ARGV.
 
 The usage messages for new/extended/modified commands can be
-added to by assigning to the hash entry $HelpData{command}.
+added to by assigning to the hash entry $Help{command}.
 
 We make use of the Getopt::Long perl module to form an orthogonal
 namespace of command-line flags; those beginning with the traditional
@@ -74,9 +74,6 @@ and/or modify it under the same terms as Perl itself.
 # and the new Getopt::Long needs 5.004. Among other things.
 # NOTE: Getopt::Long 2.17+ is recommended because it loads faster.
 require 5.004;
-
-# Get more portable handling of chdir plus $PWD tracking, etc.
-use autouse 'Cwd' => qw(chdir fastcwd);
 
 # Define helper functions and global vars. Since nobody but us will
 # ever use ClearCase::Ct (?), we export from it at will.
@@ -135,13 +132,14 @@ if ($opt_usage || ($ARGV[0] eq 'man' && $ARGV[1] eq $Wrapper)) {
 
 # We keep a 'recursion stack' in the env in order to detect when
 # the wrapper is being forked recursively (i.e. is a child of itself).
-# Special-case: start over again within a setview.
-my $Recursing = 0;
+# Generally the wrapper doesn't reprocess the argv in a recursive
+# invocation unless the --reread flag is used.
+# Special case: delete the recursion stack when a view is set.
 if ($ARGV[0] eq 'setview') {
    delete $ENV{_CT_RECURSION};
-} elsif ($ENV{_CT_RECURSION} && ! $opt_reread) {
+} elsif ($ENV{_CT_RECURSION}) {
    $ENV{_CT_RECURSION} .= ":$ARGV[0]";
-   $Recursing = 1;
+   $opt_nopro = 1 unless $opt_reread;
 } else {
    $ENV{_CT_RECURSION} = "$ARGV[0]";
 }
@@ -149,14 +147,10 @@ if ($ARGV[0] eq 'setview') {
 # We use this wrapper over require in order to implement
 # the convenience features of setting $_ to the command name
 # and @_ to the current @ARGV within the required files.
-# Also sets up the hash %Argv as a reverse lookup into @ARGV for
-# ease in checking whether an option was passed.
 sub Require
 {
    my $profile = shift;
    # Set up the reverse hash pointing back into @ARGV;
-   local %main::Argv = ();
-   for my $i (0..$#ARGV) { $main::Argv{$ARGV[$i]} = $i }
    local($_) = $_[0];
    # Use eval so syntax errors etc won't cause disastrous failures.
    eval {
@@ -171,21 +165,21 @@ sub Require
 # profiles we print the appropriate key(s) from the hash. This
 # allows real commands to have help data modified/appended and
 # also lets pseudo-commands create their own usage msgs by assigning
-# a string to $HelpData{pseudo-cmd}.
+# a string to $Help{pseudo-cmd}.
 my($_help_cmd, %_help_keys);
-use vars qw(%HelpData);
+use vars qw(%Help);
 if ($Cmd_Help || $ARGV[0] eq 'help') {
    $_help_cmd = $Cmd_Help ? $ARGV[0] : $ARGV[1] || $ARGV[0];
    my $key;
    for (`cleartool help`) {
       $key = $1 if /^Usage:\s+(\S+)/;
-      $HelpData{$key} .= $_;
+      $Help{$key} .= $_;
    }
-   chomp %HelpData;
+   chomp %Help;
 
    # Map unique abbreviations to real names, e.g. lsvt->lsvtree,
    # since "cleartool lsvt -h" is supported.
-   for (keys %HelpData) {
+   for (keys %Help) {
       for my $i (2..length) {
 	 my $sub = substr($_, 0, $i);
 	 if ($_help_keys{$sub}) {
@@ -196,7 +190,7 @@ if ($Cmd_Help || $ARGV[0] eq 'help') {
       }
    }
 
-   # Also, there are a few special-case abbreviations:
+   # There are also some special-case abbreviations known to cleartool:
    $_help_keys{mv} = $_help_keys{move};
    $_help_keys{co} = $_help_keys{checkout};
    $_help_keys{unco} = $_help_keys{uncheckout};
@@ -209,9 +203,16 @@ if ($Cmd_Help || $ARGV[0] eq 'help') {
 # Profile processing.
 #############################################################################
 
-if (! $opt_nopro && ! $Recursing) {
-   # Read the global profile.
-   Require('ClearCase/Ct/Profile.pm', @ARGV);
+if (! $opt_nopro) {
+   # Read the global profile. The SiteProfile.pm is a hack to allow
+   # site-specific data to be wrapped around Profile.pm, presuming
+   # that SiteProfile.pm will require Profile.pm.
+   my $site_prof = (grep -r, map "$_/ClearCase/Ct/SiteProfile.pm", @INC)[0];
+   if ($site_prof) {
+      Require($site_prof, @ARGV);
+   } else {
+      Require('ClearCase/Ct/Profile.pm', @ARGV);
+   }
    ($@ =~ /t locate|return a true value/) ? warn "$@" : die "$@" if $@;
 
    # Ignore the personal profile if running setuid or su-ed.
@@ -228,11 +229,11 @@ if (! $opt_nopro && ! $Recursing) {
 # Second half of help-msg processing.  See above.
 if (defined $_help_cmd) {
    if ($_help_cmd eq 'help') {
-       for (keys %HelpData) { print "$HelpData{$_}\n" }
-   } elsif ($HelpData{$_help_cmd}) {
-      print $HelpData{$_help_cmd}, "\n";
+       for (keys %Help) { print "$Help{$_}\n" }
+   } elsif ($Help{$_help_cmd}) {
+      print $Help{$_help_cmd}, "\n";
    } elsif ($_help_keys{$_help_cmd} !~ /^$|_null_/) {
-      print $HelpData{$_help_keys{$_help_cmd}}, "\n";
+      print $Help{$_help_keys{$_help_cmd}}, "\n";
    } else {
       Die("Unrecognized command: \"$_help_cmd\"\n");
    }

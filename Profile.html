@@ -1,0 +1,533 @@
+    <HTML> 
+	<HEAD> 
+	    <TITLE>Profile.pm - site-wide customizations for B<ct> wrapper
+
+</TITLE> 
+	</HEAD>
+
+	<BODY>
+
+<!-- INDEX BEGIN -->
+
+<UL>
+
+	<LI><A HREF="#NAME">NAME</A>
+	<LI><A HREF="#SYNOPSIS">SYNOPSIS</A>
+	<LI><A HREF="#SUMMARY">SUMMARY</A>
+	<LI><A HREF="#DESCRIPTION">DESCRIPTION</A>
+	<LI><A HREF="#FURTHER_CUSTOMIZATION">FURTHER CUSTOMIZATION</A>
+	<LI><A HREF="#AUTHOR">AUTHOR</A>
+	<LI><A HREF="#SEE_ALSO">SEE ALSO</A>
+</UL>
+<!-- INDEX END -->
+
+<HR>
+<P>
+<H1><A NAME="NAME">NAME
+
+</A></H1>
+Profile.pm - site-wide customizations for <STRONG>ct</STRONG> wrapper
+
+
+<P>
+
+<P>
+<HR>
+<H1><A NAME="SYNOPSIS">SYNOPSIS
+
+</A></H1>
+This is the local profile for the <STRONG>ct</STRONG> program, which functions as a wrapper for <STRONG>cleartool</STRONG>, thus allowing the command-line interface of
+<STRONG>cleartool</STRONG> to be extended or modified. It allows defaults to be changed, new flags to
+be added to existing <STRONG>cleartool</STRONG> commands, or entirely new <STRONG>cleartool</STRONG> commands to be synthesized.
+
+
+<P>
+
+Unfortunately, there's no equivalent mechanism for wrapping GUI access to
+clearcase.
+
+
+<P>
+
+<P>
+<HR>
+<H1><A NAME="SUMMARY">SUMMARY
+
+</A></H1>
+Here's a quick overview of the extensions available via <STRONG>ct</STRONG> which may be of interest to users:
+
+
+<P>
+
+A number of commands have been enhanced to simulate the standard
+<EM>cleartool</EM> flags <STRONG>-dir</STRONG>, <STRONG>-rec</STRONG>, and <STRONG>-all</STRONG>, which cause the command to operate on (respectively) all eligible
+elements in the current dir, the current dir recursively, and the current
+vob. The enhanced commands include <STRONG>checkin/ci</STRONG>, <STRONG>unco</STRONG>, <STRONG>diff</STRONG>, <STRONG>mkelem</STRONG>, and <STRONG>lsprivate</STRONG>. Thus you can check in all your current checkouts with <STRONG>ct ci -all</STRONG> or see the view-private files in and under the current dir with <STRONG>ct lsprivate -rec</STRONG>. You can convert a tree of view-private data into elements with <STRONG>ct mkelem -rec -ci</STRONG>.
+
+
+<P>
+
+The <STRONG>ct checkin</STRONG> command is also enhanced to take a <STRONG>-diff</STRONG> flag which prints your changes to the screen before prompting for a
+comment.
+
+
+<P>
+
+A new command <STRONG>ct edit</STRONG> is added. This is the same as <STRONG>ct checkout</STRONG>
+but execs your favorite editor after checking out. It also takes a
+<STRONG>-ci</STRONG> flag which will check the file in afterwards.
+
+
+<P>
+
+All commands which take a <STRONG>-tag <EM>view-tag</EM></STRONG> option are enhanced to recognize the <STRONG>-me</STRONG> flag. This modifies the effect of <STRONG>-tag</STRONG> by prepending your username to the view name. E.g.  <STRONG>-tag <EM>foo</EM> -me</STRONG> is a shorthand for <STRONG>-tag <EM>&lt;username&gt;_foo</EM></STRONG>. Similarly,
+<STRONG>ct lsview -me</STRONG> will show only views whose names match the pattern
+<EM>&lt;<STRONG>username</STRONG>&gt;_*</EM>.
+
+
+<P>
+
+The <STRONG>ct mkview</STRONG> command is enhanced to default the view-storage location to a standard
+place using a standard naming convention. See
+<EM>SiteProfile.pm.sample</EM> for how this is set up. Also, <STRONG>mkview</STRONG>
+recognizes the <STRONG>-me</STRONG> flag as described above. This means that making a new view can/should be
+done as <STRONG>ct mkview -tag foo -me</STRONG>.
+
+
+<P>
+
+New pseudo-commands <STRONG>ct edattr</STRONG> and <STRONG>ct edcmnt</STRONG> are added. These make it easy to edit the attributes and comments,
+respectively, of a particular version.
+
+
+<P>
+
+A new command <STRONG>ct rmpriv</STRONG> is added, which behaves like
+<CODE><STRONG>rm -i `ct lsprivate -rec`</STRONG></CODE>, though <STRONG>-dir</STRONG> or <STRONG>-all</STRONG> may be substituted for <STRONG>-rec</STRONG> and <STRONG>-f</STRONG> may be passed to override <STRONG>-i</STRONG>.
+
+
+<P>
+
+Detailed descriptions of all the above may be found below. Summaries are
+available via the standard <STRONG>-h</STRONG> flag.
+
+
+<P>
+
+<P>
+<HR>
+<H1><A NAME="DESCRIPTION">DESCRIPTION
+
+</A></H1>
+<UL>
+<LI><STRONG><A NAME="item_CATCS">CATCS
+
+</A></STRONG>
+Lots of enhancements here, mostly in the area of config-spec parsing for
+automation:
+
+
+<P>
+
+<OL>
+<LI><STRONG><A NAME="item_New_expand_flag"> New -expand flag
+
+</A></STRONG>
+This follows all include statements recursively in order to print a
+complete config spec.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_New_source_flag"> New -source flag
+
+</A></STRONG>
+Prints the <EM>initial working directory</EM> of a view by examining its config spec. If the conventional string <CODE>##:Source: <EM>dir</EM></CODE> is present then the value of <EM>dir</EM> is printed. Otherwise the first path found in the second field of the
+config spec, typically a vob tag, is used. If no explicit paths are
+present, no output is produced.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_New_branch_flag"> New -branch flag
+
+</A></STRONG>
+Prints the name of the first branch selected in the config spec via a line
+like this:
+
+
+<P>
+
+<PRE>        C&lt;element * .../I&lt;branch&gt;/LATEST&gt;
+</PRE>
+
+<P>
+
+<LI><STRONG><A NAME="item_New_vobs_flag"> New -vobs flag
+
+</A></STRONG>
+Prints a list of all vob tags referenced explicitly within the config spec.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_New_project_flag"> New -project flag
+
+</A></STRONG>
+Prints the <EM>name</EM> of the first vob tag encountered in the config spec, assuming the
+vob-naming convention <CODE>/vobs/<EM>name</EM>/src</CODE> or
+<CODE>/vobs/<EM>name</EM>/do</CODE> (meaning <CODE>source vobs</CODE> and <CODE>derived-object</CODE> vobs respectively).
+
+
+<P>
+
+<LI><STRONG><A NAME="item_New_promote_flag"> New -promote flag
+
+</A></STRONG>
+Prints the name of the <EM>backing branch</EM> of the current config spec. This is the branch that local work will be
+merged to.
+
+
+<P>
+
+</OL>
+<LI><STRONG><A NAME="item_CI">CI/CHECKIN
+
+</A></STRONG>
+Extended to handle the <STRONG>-dir/-rec/-all</STRONG> flags.
+
+
+<P>
+
+Extended to allow symbolic links to be ``checked in'' (by simply checking
+in the target of the link instead).
+
+
+<P>
+
+Extended to implement a <STRONG>-diff</STRONG> flag, which runs a <STRONG>ct diff -pred</STRONG>
+command before each checkin so the user can look at his/her changes before
+typing the comment.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_CO">CO/CHECKOUT
+
+</A></STRONG>
+Extension: if element being checked out is a symbolic link, silently
+replace it with the name of its target, because for some reason ClearCase
+doesn't do this automatically.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_EDIT">EDIT
+
+</A></STRONG>
+Convenience command. Same as 'checkout' but execs your favorite editor
+afterwards. Takes all the same flags as checkout, plus <STRONG>-ci</STRONG> to check the element back in afterwards. When <STRONG>-ci</STRONG> is used in conjunction with
+<STRONG>-diff</STRONG> the file will be either checked in or un-checked out depending on whether
+it was modified.
+
+
+<P>
+
+Also, <STRONG>ct edit -dir</STRONG> will not check anything out but will exec the editor on all currently
+checked-out files.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_DIFF">DIFF
+
+</A></STRONG>
+Modified default: if no flags given, assume -pred.
+
+
+<P>
+
+Extended to handle the <STRONG>-dir/-rec/-all</STRONG> flags. Also adds a <STRONG>-c</STRONG> flag to generate a context diff (by simply using the real diff program).
+
+
+<P>
+
+<LI><STRONG><A NAME="item_REVIEW">REVIEW
+
+</A></STRONG>
+New convenience command: sends a context diff between current and previous
+versions to the 'pprint' program, which prints it with line numbers
+appropriate for code reviews. E.g. you could generate a listing of all
+changes currently checked-out in your view with <CODE>ct review -all</CODE>.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_EDATTR">EDATTR
+
+</A></STRONG>
+New command, inspired by the <STRONG>edcs</STRONG> cmd. Analogous to <STRONG>edcs</STRONG>,
+<STRONG>edattr</STRONG> dumps the attributes of the specified elements into a temp file, then execs
+your favorite editor on it, and adds, removes or modifies the attributes as
+appropriate after you exit the editor. Attribute types are created and
+deleted automatically. This is particularly useful on Unix platforms
+because as of CC 3.2 the Unix GUI doesn't support modification of
+attributes.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_EDCMNT">EDCMNT
+
+</A></STRONG>
+Similar to <STRONG>edattr</STRONG>. For each version specified, dump the comment into a temp file, allow the
+user to edit it with his/her favorite editor, then change the version's
+comment to the results of the edit. The <STRONG>-new</STRONG>
+flag causes it to ignore the previous comment.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_RMPRIV">RMPRIV
+
+</A></STRONG>
+New convenience command. Conceptually this is just a shorthand for
+<STRONG>"rm -i `ct lsp`"</STRONG>, but it also handles convenience features such as the rm-like <STRONG>-f</STRONG> flag plus <STRONG>-dir/-rec/-all</STRONG>. It has the benefit of behaving the same way on NT as well.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_FIND">FIND
+
+</A></STRONG>
+Extended to simulate the -fmt option. This is done by sending the results
+of <STRONG>find</STRONG> to a <STRONG>describe -fmt</STRONG>.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_LSCO">LSCO
+
+</A></STRONG>
+Modified default: if no flags supplied, pass <STRONG>-cview</STRONG>.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_LSVTREE">LSVTREE
+
+</A></STRONG>
+Modified default to always use <STRONG>-a</STRONG> flag.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_LSPRIVATE">LSPRIVATE
+
+</A></STRONG>
+Extended to recognize <STRONG>-dir/-rec/-all</STRONG> (underlying lsprivate always behaves in a <STRONG>-all</STRONG> fashion). Also allows a directory to be specified, such that 'ct lsprivate
+.' restricts output to cwd.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_LSVIEW">LSVIEW
+
+</A></STRONG>
+Extended to recognize the general <STRONG>-me</STRONG> flag, restricting the search namespace to &lt;<STRONG>username</STRONG>&gt;_*.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_MKATTYPE">MKATTYPE
+
+</A></STRONG>
+Modification: if user tries to make a type in the current VOB without
+explicitly specifying -ordinary or -global, and if said VOB is associated
+with an admin VOB, then by default create the type as a global type in the
+admin VOB instead. <STRONG>In effect, this makes -global
+the default iff a suitable admin VOB exists</STRONG>.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_MKLBTYPE">MKLBTYPE
+
+</A></STRONG>
+Same as mkattype above.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_MKELEM">MKELEM
+
+</A></STRONG>
+Extended to handle the -dir/-rec flags, enabling automated mkelems with
+otherwise the same syntax as original. Directories are also automatically
+checked out as required in this mode. Note that this automatic directory
+checkout is only enabled when the candidate list is derived via the
+-dir/-rec flags. If the -ci flag is present, any directories automatically
+checked out are checked back in too.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_MKVIEW">MKVIEW
+
+</A></STRONG>
+Extended in the following ways:
+
+
+<P>
+
+<OL>
+<LI><STRONG><A NAME="item_New_me_flag"> New -me flag
+
+</A></STRONG>
+Supports the <STRONG>-me</STRONG> flag to prepend <CODE>$LOGNAME</CODE> to the view name, separated by an
+underscore. This enables the convention that all user views be named <STRONG>&lt;username&gt;_&lt;whatever&gt;</STRONG>.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_Default_view_storage_location"> Default view-storage location
+
+</A></STRONG>
+Provides a standard default view-storage path which includes the user's
+name. Thus a user can simply type <STRONG>"mkview -me -tag foo"</STRONG> and the view will be created as &lt;username&gt;_foo with the view storage placed in a default location determined by the
+sysadmin.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_New_profile_flag"> New -profile flag
+
+</A></STRONG>
+The user can associate the view with a <EM>ClearCase View Profile</EM>. Although, as of CC 3.2 these can only be manipulated on Windows NT, this
+extension allows them to be <EM>used</EM> on Unix platforms. In order for this to work, the view-profile storage area
+must be accessible to the Unix platforms (via NFS or Samba, for instance).
+The profile text is modified to replace backslashes with forward slashes,
+correct line-termination characters, and is then instantiated in the config
+spec. The <STRONG>ct synccs</STRONG> command can be used to resync.
+
+
+<P>
+
+#=item 4. New <STRONG>-back</STRONG> flag #This is an advanced topic ...
+
+
+<P>
+
+## Note: to use the default view-storage feature you must define ## the
+variable <CODE>$ViewStgRoot</CODE> to the appropriate place, typically ##
+/net/somewhere/viewstore/... or similar.
+
+
+<P>
+
+</OL>
+<LI><STRONG><A NAME="item_SYNCCS">SYNCCS
+
+</A></STRONG>
+New command: takes an optional view tag via <STRONG>-tag</STRONG> and a view-profile name with <STRONG>-profile</STRONG>, and synchronizes the config spec with the profile. If no tag is passed,
+operates on the current view spec; if no
+<STRONG>-profile</STRONG>, re-synchronizes with the current profile.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_UNCO">UNCO
+
+</A></STRONG>
+Modified default to always use -rm (this may be controversial but is easily
+overridden in the user's profile).
+
+
+<P>
+
+Extended to accept (and ignore) the <STRONG>-nc</STRONG> flag for consistency with other cleartool cmds.
+
+
+<P>
+
+Extended to handle the -dir/-rec/-all flags.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_SETVIEW">SETVIEW/STARTVIEW/ENDVIEW
+
+</A></STRONG>
+Extended to support the <STRONG>-me</STRONG> flag (prepends &lt;<STRONG>username</STRONG>&gt;_* to tag).
+
+
+<P>
+
+</UL>
+<P>
+<HR>
+<H1><A NAME="FURTHER_CUSTOMIZATION">FURTHER CUSTOMIZATION
+
+</A></H1>
+Working on a profile is actually quite easy if you remember that within it <STRONG>$_</STRONG> is set to the command name, <STRONG>@ARGV</STRONG> is the complete command line and <STRONG>@_</STRONG> is a copy of it, <STRONG>$0</STRONG> is the path to the wrapper, and
+<STRONG>$ClearCmd</STRONG> is the path to the real <EM>cleartool</EM> program. Also, the hash <STRONG>%Vgra</STRONG> is a reverse lookup such that <STRONG><EM>$ARGV[$Vgra{xyz}] eq "xyz"</EM></STRONG>.
+
+
+<P>
+
+With most perl modules, the <CODE>.pm</CODE> code itself (the part that gets found via <CODE>@INC</CODE>) is static - it's not generally modified except via updates of the module.
+Meanwhile, users write code to use the module and that code is fluid; they
+change it as they please. This module is backwards from that since the <STRONG>ct</STRONG> program is policy-free and thus shouldn't need to be changed significantly.
+Meanwhile, the
+<STRONG>Profile.pm</STRONG> is intended to be a reflection of the local policies and preferences; the
+provided <STRONG>Profile.pm</STRONG> is simply a sample of what can be done.
+
+
+<P>
+
+The <STRONG>Profile.pm</STRONG> does <STRONG>not</STRONG> establish a separate namespace; it operates within <CODE>main::</CODE>. There did not seem to be any good reason to do so, since the whole point
+is to operate directly on the namespace provided by the client program <STRONG>ct</STRONG>.
+
+
+<P>
+
+The <STRONG>ct</STRONG> program is normally expected to be used under that name, which means that
+users running <STRONG>cleartool lsco</STRONG>, for instance, will go around the wrapper. However, it's also designed to
+allow for complete wrapping if desired. To do so, move
+$ATRIAHOME/bin/cleartool to $ATRIAHOME/bin/wrapped/cleartool and install <STRONG>ct</STRONG> as $ATRIAHOME/bin/cleartool. You can continue to install/link the wrapper
+as <STRONG>ct</STRONG> as well - it won't invoke the wrapper twice because it contains code to
+detect the presence of the moved-aside binary and run it.
+
+
+<P>
+
+As a safety mechanism, the <CODE>require</CODE>-ing of the profile is handled within an <CODE>eval</CODE> block, so a syntax error or config problem in the profile won't cause it to
+fail. It will simply print a warning and continue.
+
+
+<P>
+
+<P>
+<HR>
+<H1><A NAME="AUTHOR">AUTHOR
+
+</A></H1>
+David Boyce, <A HREF="MAILTO:dsb@world.std.com">dsb@world.std.com</A>
+
+
+<P>
+
+<P>
+<HR>
+<H1><A NAME="SEE_ALSO">SEE ALSO
+
+</A></H1>
+<CODE>cleartool(1),</CODE> <CODE>perl(1).</CODE>
+
+
+<P>
+
+</DL>
+    </BODY>
+
+    </HTML>

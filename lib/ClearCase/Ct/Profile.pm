@@ -2,8 +2,8 @@
 
 use vars qw($VERSION);
 
-# Note that this version moves independently of the one in Ct.pm.
-$VERSION = '1.03';
+# Note that this version can move independently of the one in Ct.pm.
+$VERSION = '1.05';
 
 =head1 NAME
 
@@ -23,41 +23,48 @@ to clearcase.
 =head1 SUMMARY
 
 Here's a quick overview of the extensions available via B<ct> which may
-be of interest to developers:
+be of interest to users:
 
 A number of commands have been enhanced to simulate the standard
-B<cleartool> flags B<-dir, -rec, and -all>, which cause the command to
-operate on (respectively) all eligible files in the current dir, the
-current dir recursively, and the current vob. The enhanced commands
-include B<checkin/ci>, B<unco>, B<diff>, B<mkelem>, and B<lsprivate>.
-Thus you can check in all your current checkouts with B<ct ci -all> or
-see the view-private files in and under the current dir with B<ct
-lsprivate -rec>. You can convert a tree of view-private data into
-elements with B<ct mkelem -rec>.
+I<cleartool> flags B<-dir>, B<-rec>, and B<-all>, which cause the
+command to operate on (respectively) all eligible elements in the
+current dir, the current dir recursively, and the current vob. The
+enhanced commands include B<checkin/ci>, B<unco>, B<diff>, B<mkelem>,
+and B<lsprivate>.  Thus you can check in all your current checkouts
+with B<ct ci -all> or see the view-private files in and under the
+current dir with B<ct lsprivate -rec>. You can convert a tree of
+view-private data into elements with B<ct mkelem -rec -ci>.
 
-A new command B<ct rmpriv> is added, which behaves like
-C<B<rm -i `ct lsprivate -rec`>>, though C<-dir> or C<-all> may be
-substituted for C<-rec> and B<-f> may be passed to override C<-i>.
-
-The B<checkin> command is also enhanced to take a B<-diff> flag which
+The B<ct checkin> command is also enhanced to take a B<-diff> flag which
 prints your changes to the screen before prompting for a comment.
 
 A new command B<ct edit> is added. This is the same as B<ct checkout>
-but execs your favorite editor after checking out.
+but execs your favorite editor after checking out. It also takes a
+B<-ci> flag which will check the file in afterwards.
 
-All commands which take a view tag with B<-tag> are enhanced to
+All commands which take a B<-tag I<view-tag>> option are enhanced to
 recognize the B<-me> flag.  This modifies the effect of B<-tag> by
-prepending your username automatically to the view name. E.g.
-B<-tag foo -me> is a shorthand for B<-tag E<lt>usernameE<gt>_foo>.
-Similarly, B<ct lsview -me> will show only views whose names
-match the pattern E<lt>B<username>E<gt>_*.
+prepending your username to the view name. E.g.  B<-tag I<foo> -me> is a
+shorthand for B<-tag I<E<lt>usernameE<gt>_foo>>.  Similarly,
+B<ct lsview -me> will show only views whose names match the pattern
+I<E<lt>B<username>E<gt>_*>.
 
 The B<ct mkview> command is enhanced to default the view-storage
-location to a standard place using a standard naming convention.
-Also, B<mkview> recognizes the B<-me> flag. This means that making
-a new view can/should be done as B<ct mkview -tag foo -me>.
+location to a standard place using a standard naming convention.  See
+I<SiteProfile.pm.sample> for how this is set up.  Also, B<mkview>
+recognizes the B<-me> flag as described above. This means that making a
+new view can/should be done as B<ct mkview -tag foo -me>.
 
-Detailed descriptions of all the above may be found below.
+New pseudo-commands B<ct edattr> and B<ct edcmnt> are added. These
+make it easy to edit the attributes and comments, respectively, of
+a particular version.
+
+A new command B<ct rmpriv> is added, which behaves like
+C<B<rm -i `ct lsprivate -rec`>>, though B<-dir> or B<-all> may be
+substituted for B<-rec> and B<-f> may be passed to override B<-i>.
+
+Detailed descriptions of all the above may be found below. Summaries
+are available via the standard B<-h> flag.
 
 =head1 DESCRIPTION
 
@@ -67,12 +74,12 @@ Detailed descriptions of all the above may be found below.
 # Notes for Developers:
 # This file is in two sections.  The first section simply adds help
 # data for the commands modified/defined in the second section; it's
-# placed first both for self-documentation reasons and so we can quit
+# placed first both for self-documentation reasons and so we can return
 # before reaching the command section when in help mode.
 
 # The help section is where extensions are documented.  Assigning string
-# data to $HelpData{command} will cause the new string to be printed
-# after the "real" help output for that cmd.  If you're adding a whole
+# data to $Help{command} will cause the new string to be printed after
+# the "real" help output, if any, for that cmd.  If you're adding a whole
 # new cmd, there will be no "real" output so you can provide the entire
 # help msg here. By convention, new flags are marked with a (*).
 
@@ -90,55 +97,55 @@ Detailed descriptions of all the above may be found below.
 # Sorry, this file is not too well documented and not to everyone's
 # taste stylistically. The good news is that most of the code blocks
 # are completely standalone so it's not too hard to figure out what
-# they do once you realize that. Think of them as subroutines; they
+# they do once you understand that. Think of them as subroutines; they
 # have @_ set upon entry (as well as $_ set to the command name).
 ########################################################################
 
 ######################### Help Section #################################
 
 # We always want to traverse this block, even if help is not being
-# requested, in order to have a full record of the usage msg so a
+# requested, in order to have a full record of the usage msgs so a
 # pseudo-command can print it on error. The keys below must be the
 # real name of the cmd, not an abbreviation!
 {
 
-   $HelpData{catcs} .= "
+   $Help{catcs} .= "
            * [-expand|-source|-branch|-vobs|-project|-promote]";
 
-   $HelpData{checkin} .= "
-                  * [-dir|-rec|-all] [-diff [diff-options]]";
+   $Help{checkin} .= "
+                  * [-dir|-rec|-all] [-diff [diff-options]] [-revert]";
 
-   $HelpData{diff} .= "
+   $Help{diff} .= "
           * [-c] [-dir|-rec|-all]";
 
-   $HelpData{edit} .= "Usage: *edit <checkout-flags> [-dir|-rec|-all] pname ...";
+   $Help{edit} .= "Usage: *edit <co-flags> [-ci] <ci-flags> pname ...";
 
-   $HelpData{find} .= "
+   $Help{find} .= "
           * [-fmt format] (simulated by passing output to 'describe')";
 
-   $HelpData{lsprivate} .= "
+   $Help{lsprivate} .= "
                * [dir]
                * [-dir|-rec|-all]";
 
-   $HelpData{lsview} .= "
+   $Help{lsview} .= "
             * [-me]";
 
-   $HelpData{mkelem} .= "
+   $Help{mkelem} .= "
             * [-dir|-rec]";
 
-   $HelpData{mkview} =~ s/  (view-storage-pname)/* [-me] [-back backing-view-list | -profile view-profile-name]
+   $Help{mkview} =~ s/  (view-storage-pname)/* [-me] [-back backing-view-list | -profile view-profile-name]
             * [$1]/;
 
-   $HelpData{setview} .= " * [-me]";
+   $Help{setview} .= " * [-me]";
 
-   $HelpData{uncheckout} .= "
+   $Help{uncheckout} .= "
                        * [-nc]";
 
-   $HelpData{synccs} .= "Usage: *synccs [-tag view-tag] -profile profile-name";
+   $Help{synccs} .= "Usage: *synccs [-tag view-tag] -profile profile-name";
 
-   $HelpData{edattr} .= "Usage: *edattr object-selector ...";
+   $Help{edattr} .= "Usage: *edattr object-selector ...";
 
-   $HelpData{edcmnt} .= "Usage: *edcmnt [-new] object-selector ...";
+   $Help{edcmnt} .= "Usage: *edcmnt [-new] object-selector ...";
 }
 
 ###################### End of Help Section #############################
@@ -156,12 +163,6 @@ use autouse 'File::Path' => qw(mkpath);
 # Assume that all vobs are owned by a single pseudo-user of this name:
 my $VobAdm = 'vobadm';
 
-# Where we currently keep the (NT-based) view profiles.
-my $ProfileStgRoot = '/net/nirobi/vobstore/ccase_cfg/ClearCase View Profiles';
-
-# Site-specific preference for where we like to base our views.
-my $ViewStgRoot = '/net/tripoli/viewstore/workspaces';
-
 # General-purpose accumulator for CT options.
 my %Opt;
 
@@ -169,10 +170,10 @@ my %Opt;
 sub ViewTag
 {
    local(@ARGV) = @ARGV;
-   my($myopt_tag);
-   GetOptions("tag=s" => \$myopt_tag);
-   ($myopt_tag) = reverse split('/', $ENV{CLEARCASE_ROOT}) unless $myopt_tag;
-   return $myopt_tag;
+   my($opt_view_tag);
+   GetOptions("tag=s" => \$opt_view_tag);
+   ($opt_view_tag) = reverse split('/', $ENV{CLEARCASE_ROOT}) if !$opt_view_tag;
+   return $opt_view_tag;
 }
 
 # Takes the name of a view tag, returns the storage dir for that view.
@@ -192,10 +193,10 @@ sub ViewStorage
 # relies on the fact that even though -me is a native cleartool flag,
 # as of CC3.2 no command which takes -tag also takes -me natively.
 if ((grep /^-me$|^-tag$/, @ARGV) >= 2) {
-   my($myopt_tag, $myopt_me);
-   ReadOptions(\@ARGV, "tag=s" => \$myopt_tag, "me" => \$myopt_me);
-   if ($myopt_me && $myopt_tag && ($myopt_tag !~ m%/%)) {
-      $ARGV[$Argv{'-tag'}+1] = join('_', $ENV{LOGNAME}, $myopt_tag);
+   my($opt_gen_tag, $opt_gen_me);
+   ReadOptions(\@ARGV, "tag=s" => \$opt_gen_tag, "me" => \$opt_gen_me);
+   if ($opt_gen_me && $opt_gen_tag && ($opt_gen_tag !~ m%/%)) {
+      $ARGV[$Vgra{'-tag'}+1] = join('_', $ENV{LOGNAME}, $opt_gen_tag);
       StripOptions(\@ARGV, "me");
    }
 }
@@ -299,7 +300,7 @@ for automation:
 This follows all include statements recursively in order to print a
 complete config spec.
 
-=item 2. New C<-source> flag
+=item 2. New B<-source> flag
 
 Prints the I<initial working directory> of a view by examining its
 config spec. If the conventional string C<##:Source: I<dir>> is present
@@ -307,26 +308,26 @@ then the value of I<dir> is printed. Otherwise the first path
 found in the second field of the config spec, typically a vob tag,
 is used. If no explicit paths are present, no output is produced.
 
-=item 3. New C<-branch> flag
+=item 3. New B<-branch> flag
 
 Prints the name of the first branch selected in the config spec
 via a line like this:
 
 	C<element * .../I<branch>/LATEST>
 
-=item 4. New C<-vobs> flag
+=item 4. New B<-vobs> flag
 
 Prints a list of all vob tags referenced explicitly within the
 config spec.
 
-=item 5. New C<-project> flag
+=item 5. New B<-project> flag
 
 Prints the I<name> of the first vob tag encountered in the config spec,
 assuming the vob-naming convention C</vobs/I<name>/src> or
 C</vobs/I<name>/do> (meaning C<source vobs> and C<derived-object> vobs
 respectively).
 
-=item 6. New C<-promote> flag
+=item 6. New B<-promote> flag
 
 Prints the name of the I<backing branch> of the current config spec.
 This is the branch that local work will be merged to.
@@ -425,9 +426,9 @@ before typing the comment.
       $SIG{INT} = 'IGNORE';	## this does not appear to be effective
 
       # Extension: -d/iff flag runs 'cleartool diff' on each elem first
-      my($myopt_diff);
-      GetOptions("diff" => \$myopt_diff);
-      if ($myopt_diff) {
+      my($opt_ci_diff, $opt_ci_revert);
+      GetOptions("diff" => \$opt_ci_diff, "revert" => \$opt_ci_revert);
+      if ($opt_ci_diff) {
 	 my(@elems, @diff_args);
 	 {
 	    local (@ARGV) = @ARGV;	# operate on temp argv
@@ -451,8 +452,13 @@ before typing the comment.
 	 splice(@ARGV, @ARGV - @elems);
 	 if (@elems) {
 	    for $elem (@elems) {
-	       System($ClearCmd, 'diff', '-pred', @diff_args, $elem);
-	       System($ClearCmd, @ARGV, $elem) && exit $?>>8;
+	       my $diff = System($ClearCmd, qw(diff -pred), @diff_args, $elem);
+	       # If -revert and no diffs, uncheckout instead of checkin
+	       if ($opt_ci_revert && !$diff) {
+		  System($ClearCmd, qw(unco -rm), $elem);
+	       } else {
+		  System($ClearCmd, @ARGV, $elem);
+	       }
 	    }
 	    # All done, no need to return to wrapper program.
 	    exit $?>>8;
@@ -469,32 +475,57 @@ some reason ClearCase doesn't do this automatically.
 
 =item * EDIT
 
-New convenience command. Same as 'checkout' but execs your favorite
-editor afterwards.
+Convenience command. Same as 'checkout' but execs your favorite editor
+afterwards. Takes all the same flags as checkout, plus B<-ci> to check
+the element back in afterwards. When B<-ci> is used in conjunction with
+B<-diff> the file will be either checked in or un-checked out depending
+on whether it was modified.
+
+Also, B<ct edit -dir> will not check anything out but will exec the
+editor on all currently checked-out files.
 
 =cut
 
    if (/^co$|^checkout$|^edit$/) {
-      if (/^edit$/) {
-	 # Special case - -dir/-rec execs editor on current checkouts
-	 Exec($Editor, CheckedOutList(\@ARGV)) if keys %AutoOpt;
-
-	 $ARGV[0] = 'co';
-	 my @checkouts = RemainingOptions(\@ARGV,
-			   "reserved|unreserved|ndata|version|nwarn",
-			   "out|branch=s", "c|cfile=s", "cqe|nc");
-	 shift @checkouts;
-	 push(@::PostOpEvalStack, "_editfunc");
-	 sub _editfunc {
-	    return $::Retcode if $::Retcode;
-	    Exec($Editor, @checkouts);
-	 };
-      }
-
       # If the user tries to check out a symlink, replace it with
       # the path to the actual element. Don't know why CC doesn't
       # do this or at least provide a -L flag.
       for (@ARGV[1..$#ARGV]) { $_ = readlink if -l && defined readlink }
+
+      if (/^edit$/) {
+	 # Special hack - -dir/-rec execs editor on current checkouts
+	 Exec($Editor, CheckedOutList(\@ARGV)) if keys %AutoOpt;
+
+	 # First, parse for the pseudo flag -ci but only if we know
+	 # it's there.
+	 my($opt_edit_ci);
+	 GetOptions("ci" => \$opt_edit_ci) if defined $Vgra{-ci};
+
+	 # Now strip the checkin options from @ARGV if -ci was used,
+	 # saving them for the checkin.
+	 my @ci_options = StripOptions(\@ARGV, "nwarn|cr|ptime|identical|rm",
+					    "from=s", "diff") if $opt_edit_ci;
+
+	 # Do the checkout.
+	 if (System($ClearCmd, 'co', @ARGV[1..$#ARGV])) {
+	    Prompt('text', '-pro', "[Hit return to continue]");
+	 }
+
+	 # Now we can strip all 'co' flags from ARGV; what's left
+	 # should be elements only.
+	 StripOptions(\@ARGV, "out|branch=s", "c|cfile=s", "cqe|nc",
+			   "reserved|unreserved|ndata|version|nwarn");
+	 shift @ARGV;
+
+	 # Edit the file(s) and checkin afterwards if -ci was used.
+	 if ($opt_edit_ci) {
+	    System($Editor, @ARGV) || 1; ## ignore $? - vi sometimes exits >0
+	    Exec($0, qw(ci -revert --reread), @ci_options, @ARGV);
+	 } else {
+	    Exec($Editor, @ARGV);
+	 }
+	 #NOTREACHED#
+      }
 
       last COMMAND;
    }
@@ -545,10 +576,10 @@ of all changes currently checked-out in your view with C<ct review -all>.
 	    if (/^review$/) {
 	       open(STDOUT, "| pprint -t '$elem'") || Warn "$!";
 	    }
-	    System('/usr/bin/diff', '-c', "$elem\@\@$pred", $elem);
-	    if ($?>>8 > 1) {
+	    my $rc = System('/usr/bin/diff', '-c', "$elem\@\@$pred", $elem);
+	    if ($rc>>8 > 1) {
 	       $finalstat = 2;
-	    } elsif ($?>>8 == 1 && $finalstat < 2) {
+	    } elsif ($rc>>8 == 1 && $finalstat < 2) {
 	       $finalstat = 1;
 	    }
 	 }
@@ -557,8 +588,9 @@ of all changes currently checked-out in your view with C<ct review -all>.
 
       # Extension: handle AutoOpt flags (parsed above).
       if (keys %AutoOpt) {
-	 for my $elem (@elems) { System($0, @ARGV, '--reread', $elem); }
-	 exit $?>>8;    # All done, no need to return to wrapper program.
+	 my $rc = 0;
+	 for my $elem (@elems) { $rc = System($0, @ARGV, '--reread', $elem) }
+	 exit $rc>>8;    # All done, no need to return to wrapper program.
       }
 
       # Change default: diff -pred -serial
@@ -579,22 +611,29 @@ doesn't support modification of attributes.
 =cut
 
    if (/^edattr$/) {
-      Die "$HelpData{$_}\n" unless @ARGV > 1;
+      Die "$Help{$_}\n" unless @ARGV > 1;
       my $retstat = 0;
       my $edtmp = "$TmpDir/$_.$$";
       for my $elem (@ARGV[1..$#ARGV]) {
 	 my %indata = ();
 	 $elem .= '@@' unless $elem =~ /\@\@/;
 	 my @lines = `$ClearCmd desc -aattr -all $elem`; 
+	 if ($?) {
+	    $retstat++;
+	    next;
+	 }
 	 for my $line (@lines) {
 	    next unless $line =~ /\s*(\S+)\s+=\s+(.+)/;
 	    $indata{$1} = $2;
 	 }
 	 open(EDTMP, ">$edtmp") || die "$edtmp: $!";
-	 print EDTMP "# $elem (format: attr = \"val\"):\n\n";
+	 print EDTMP "# $elem (format: attr = \"val\"):\n\n" if ! keys %indata;
 	 for (sort keys %indata) { print EDTMP "$_ = $indata{$_}\n" }
 	 close(EDTMP) || die "$edtmp: $!";
-	 System($Editor, $edtmp); ## don't test $? - vi sometimes exits >0
+
+	 # Run editor on temp file
+	 System($Editor, $edtmp) || 1; ## ignore $? - vi sometimes exits >0
+
 	 open(EDTMP, $edtmp) || die "$edtmp: $!";
 	 while (<EDTMP>) {
 	    chomp;
@@ -653,16 +692,16 @@ flag causes it to ignore the previous comment.
 =cut
 
    if (/^edcmnt$/) {
-      my($myopt_new);
-      GetOptions("new" => \$myopt_new);
-      Die "$HelpData{$_}\n" unless @ARGV > 1;
+      my($opt_edcmnt_new);
+      GetOptions("new" => \$opt_edcmnt_new);
+      Die "$Help{$_}\n" unless @ARGV > 1;
       my $retstat = 0;
       my $edtmp = "$TmpDir/$_.$$";
       # Checksum before and after edit - only update if changed.
       my($csum_pre, $csum_post);
       for my $elem (@ARGV[1..$#ARGV]) {
 	 my @input = ();
-	 if (!$myopt_new) {
+	 if (!$opt_edcmnt_new) {
 	    @input = Backtick($ClearCmd, qw(desc -fmt %c), $elem);
 	    next if $?;
 	 }
@@ -672,7 +711,7 @@ flag causes it to ignore the previous comment.
 	    print EDTMP $_;
 	 }
 	 close(EDTMP) || Die "$edtmp: $!";
-	 System($Editor, $edtmp); ## don't test $? - vi sometimes exits >0
+	 System($Editor, $edtmp) || 1; ## ignore $? - vi sometimes exits >0
 	 open(EDTMP, $edtmp) || Die "$edtmp: $!";
 	 while (<EDTMP>) { $csum_post += unpack("%16C*", $_); }
 	 close(EDTMP) || Die "$edtmp: $!";
@@ -760,7 +799,7 @@ Modified default to always use B<-a> flag.
 =item * LSPRIVATE
 
 Extended to recognize B<-dir/-rec/-all> (underlying lsprivate always
-behaves in a C<-all> fashion). Also allows a directory to be
+behaves in a B<-all> fashion). Also allows a directory to be
 specified, such that 'ct lsprivate .' restricts output to cwd.
 
 =cut
@@ -802,21 +841,58 @@ namespace to E<lt>B<username>E<gt>_*.
 =cut
 
    if (/^lsview$/) {
-      my($myopt_me);
-      GetOptions("me" => \$myopt_me);
-      # For some reason usernames are forced to uppercase on NT
+      my($opt_lsview_me);
+      GetOptions("me" => \$opt_lsview_me);
+      # For some reason usernames seem to be forced to uppercase on NT.
       push(@ARGV, $Win32 ? "$ENV{USERNAME}_*" : "$ENV{LOGNAME}_*")
-	    if $myopt_me;
+	    if $opt_lsview_me;
       last COMMAND;
+   }
+
+=item * MKATTYPE
+
+Modification: if user tries to make a type in the current VOB without
+explicitly specifying -ordinary or -global, and if said VOB is
+associated with an admin VOB, then by default create the type as a
+global type in the admin VOB instead. B<In effect, this makes -global
+the default iff a suitable admin VOB exists>.
+
+=item * MKLBTYPE
+
+Same as mkattype above.
+
+=cut
+
+   if (/^mkattype$|^mklbtype$/) {
+      if (! grep(/^-ord|^-glo|vob:/i, @ARGV)) {
+	 my $adm = `$ClearCmd desc -s -ahlink AdminVOB vob:.`;
+	 if ($? == 0 && $adm) {
+	    if ($adm =~ s/->\s+vob:(.+)/$1/) {
+	       chomp $adm;
+	       warn "Making global type in VOB $adm ...\n";
+	       # Save aside all possible flags for mkattype/mklbtype,
+	       # then add the vob selector to each type selector,
+	       # and put the flags back along with the new -global.
+	       my @flags = StripOptions(\@ARGV, "replace|global|ordinary",
+			      "vpelement|vpbranch|vpversion",
+			      "gt|ge|lt|le|enum|default|vtype=s",
+			      "pbranch|shared",
+			      "cqe|nc", "c|cfile=s");
+	       for (@ARGV[1..$#ARGV]) {$_ .= "\@vob:$adm"}
+	       splice(@ARGV, 1, 0, @flags, '-global');
+	    }
+	 }
+      }
    }
 
 =item * MKELEM
 
-Extended to handle the -dir/-rec/-all flags, enabling recursive mkelems
-with otherwise the same syntax as original. To implement this, we put
-all the directories under version control within the wrapper, then
-do a C<mkelem> as usual on the files. If the -ci flag is present we
-then check the directories back in before finishing.
+Extended to handle the -dir/-rec flags, enabling automated mkelems with
+otherwise the same syntax as original. Directories are also
+automatically checked out as required in this mode. Note that this
+automatic directory checkout is only enabled when the candidate list is
+derived via the -dir/-rec flags.  If the -ci flag is present, any
+directories automatically checked out are checked back in too.
 
 =cut
 
@@ -834,52 +910,65 @@ then check the directories back in before finishing.
 			    \Q.abe.state\E/x,
 	    PrivateList('-other'));
 
+      # We'll be separating the elements-to-be into files and directories.
       my @files = ();
-      my @dirs = ();
+      my %dirs = ();
 
-      # Check out the current directory if necessary - but only
-      # if any of the element candidates are in it.
-      if ((grep(m%/%, @candidates) < @candidates) &&
-	    (`$ClearCmd ls -d -s .` !~ /CHECKEDOUT$/)) {
-	 exit $?<<8 if System($ClearCmd, qw(co -nc .));
-	 unshift(@dirs, '.');
+      # If the parent directories of any of the candidates are
+      # already versioned, we'll need to check them out unless
+      # it's already been done.
+      for (@candidates) {
+	 my $d = dirname($_);
+	 next if $dirs{$d};
+	 my $lsd = `$ClearCmd ls -d $d`;
+	 # If no version selector given, it's a view-private dir and
+	 # will be handled below.
+	 next unless $lsd =~ /\sRule:\s/;
+	 # If already checked out, nothing to do.
+	 next if $lsd =~ /CHECKEDOUT$/;
+	 # Now we know it's an element and needs to be checked out.
+	 $dirs{$d}++;
       }
+      exit $?>>8 if keys %dirs && System($ClearCmd, qw(co -nc), keys %dirs);
 
-      for my $inode (@candidates) {
-	 if (! -d $inode) {
-	    push(@ARGV, $inode);
-	    push(@files, $inode);
+      # Process candidate directories here, then do files below.
+      for my $cand (@candidates) {
+	 if (! -d $cand) {
+	    push(@ARGV, $cand);
+	    push(@files, $cand);
 	    next;
 	 }
 	 # Now we know we're dealing with directories.  These cannot
-	 # exist at creation time so we move them aside, make
+	 # exist at mkelem time so we move them aside, make
 	 # a versioned dir, then move all the files from the original
 	 # back into the new dir (still as view-private files).
-	 my $tmpdir = "$inode.$$.keep.d";
-	 Die "$inode: $!" unless rename($inode, $tmpdir);
-	 if(System($ClearCmd, 'mkdir', '-nc', $inode)) {
-	    rename($tmpdir, $inode);
+	 my $tmpdir = "$cand.$$.keep.d";
+	 Die "$cand: $!" unless rename($cand, $tmpdir);
+	 if(System($ClearCmd, qw(mkdir -nc), $cand)) {
+	    rename($tmpdir, $cand);
 	    exit 1;
 	 }
 	 opendir(DIR, $tmpdir) || Die "$tmpdir: $!";
 	 while (defined(my $i = readdir(DIR))) {
 	    next if $i eq '.' || $i eq '..';
-	    rename("$tmpdir/$i", "$inode/$i") || Die "$inode/$i: $!\n";
+	    rename("$tmpdir/$i", "$cand/$i") || Die "$cand/$i: $!\n";
 	 }
 	 closedir DIR;
 	 Warn "$tmpdir: $!" unless rmdir $tmpdir;
-	 # Keep a record of directories created.
-	 unshift(@dirs, $inode);
+	 # Keep a record of directories to be checked in when done.
+	 $dirs{$cand}++;
       }
 
       # Now we've made all the directories - do the files in one
       # fell swoop.
-      exit $?>>8 if @files && System($ClearCmd, @ARGV);
+      System($ClearCmd, @ARGV) if @files;
 
       # Now, if the -ci flag was supplied, check the dirs back in.
-      my $myopt_ci;
-      ReadOptions(\@ARGV, "ci" => \$myopt_ci);
-      exit $?>>8 if $myopt_ci && @dirs && System($ClearCmd, qw(ci -nc), @dirs);
+      my $opt_mkelem_ci;
+      ReadOptions(\@ARGV, "ci" => \$opt_mkelem_ci);
+      exit $?>>8
+	 if $opt_mkelem_ci && keys %dirs &&
+	    System($ClearCmd, qw(ci -nc), keys %dirs);
 
       exit 0;
    }
@@ -915,9 +1004,12 @@ text is modified to replace backslashes with forward slashes, correct
 line-termination characters, and is then instantiated in the config
 spec. The B<ct synccs> command can be used to resync.
 
-#=item 4. New C<-back> flag
-#
+#=item 4. New B<-back> flag
 #This is an advanced topic ...
+
+## Note: to use the default view-storage feature you must define
+## the variable $ViewStgRoot to the appropriate place, typically
+## /net/somewhere/viewstore/... or similar.
 
 =back
 
@@ -951,6 +1043,7 @@ EOCS
       } elsif ($opt_profile) {
 	 # Need to grab the profile and (a) change all \ to /, and
 	 # (b) remove ^M from the ends of the lines.
+	 Die "no profile storage area defined\n" if ! defined $ProfileStgRoot;
 	 my $ru = "$ProfileStgRoot/$opt_profile/Rules";
 	 Die "$ru: $!\n" unless open(FH_RULE, $ru);
 	 for my $line (<FH_RULE>) {
@@ -968,7 +1061,7 @@ EOCS
 		    "ncaexported", "cachesize=s",
 	 );
 	 GetOptions("tag=s" => \$opt_tag);
-	 if ($opt_tag && ($#ARGV == 0) && $ViewStgRoot) {
+	 if ($opt_tag && ($#ARGV == 0) && defined $ViewStgRoot) {
 	    $stg = "$ViewStgRoot/$ENV{LOGNAME}/$opt_tag.vws";
 	 }
       }
@@ -980,7 +1073,7 @@ EOCS
 		  if ($opt_tag !~ /^$ENV{LOGNAME}_/);
 
 	    # Policy: view-storage areas should be in std place.
-	    if ($ViewStgRoot) {
+	    if (defined $ViewStgRoot) {
 	       $stg = "$ViewStgRoot/$ENV{LOGNAME}/$opt_tag.vws";
 	       if ($ARGV[-1] =~ m%$stg$%) {
 		  my($vwbase) = ($ARGV[-1] =~ m%(.+)/[^/]+\.vws$%);
@@ -1028,7 +1121,7 @@ B<-profile>, re-synchronizes with the current profile.
       my $profile;
       GetOptions("profile=s" => \$profile);
       my $tag = ViewTag();
-      die $HelpData{$_} unless $tag;
+      die $Help{$_} unless $tag;
       $vws ||= ViewStorage($tag) or die;
       $spec ||= "$vws/config_spec";
       my($line, $rdata, $sdata);
@@ -1048,6 +1141,7 @@ B<-profile>, re-synchronizes with the current profile.
 
       # Open the rule profile, read its lines into an array, close it.
       Die "no profile specified or found\n" unless $profile;
+      Die "no profile storage area defined\n" if ! defined $ProfileStgRoot;
       my $rule = "$ProfileStgRoot/$profile/Rules";
       Die "$rule: $!\n" unless open(FH_RULE, $rule);
       for $line (<FH_RULE>) {
@@ -1086,7 +1180,7 @@ B<-profile>, re-synchronizes with the current profile.
 Modified default to always use -rm (this may be controversial but is
 easily overridden in the user's profile).
 
-Extended to accept (and ignore) the C<-nc> flag for consistency with
+Extended to accept (and ignore) the B<-nc> flag for consistency with
 other cleartool cmds.
 
 Extended to handle the -dir/-rec/-all flags.
@@ -1111,15 +1205,15 @@ Extended to handle the -dir/-rec/-all flags.
 
 =item * SETVIEW/STARTVIEW/ENDVIEW
 
-Extended to support the C<-me> flag (prepends E<lt>B<username>E<gt>_* to tag).
+Extended to support the B<-me> flag (prepends E<lt>B<username>E<gt>_* to tag).
 
 =cut
 
    if (/^setview$|^startview$|^endview$/) {
-      my($myopt_me);
-      GetOptions("me" => \$myopt_me);
+      my($opt_setview_me);
+      GetOptions("me" => \$opt_setview_me);
       $ARGV[-1] = join('_', $ENV{LOGNAME}, $ARGV[-1])
-	    if ($myopt_me && $ARGV[-1] !~ /^$ENV{LOGNAME}/);
+	    if ($opt_setview_me && $ARGV[-1] !~ /^$ENV{LOGNAME}/);
       last COMMAND;
    }
 
@@ -1134,12 +1228,13 @@ __END__
 
 =back
 
-=head1 CUSTOMIZATION
+=head1 FURTHER CUSTOMIZATION
 
 Working on a profile is actually quite easy if you remember that within
 it B<$_> is set to the command name, B<@ARGV> is the complete command
-line and B<@_> is a copy of it, B<$0> is the path to the wrapper,
-and B<$ClearCmd> is the path to the real I<cleartool> program.
+line and B<@_> is a copy of it, B<$0> is the path to the wrapper, and
+B<$ClearCmd> is the path to the real I<cleartool> program.  Also, the
+hash B<%Vgra> is a reverse lookup such that B<I<$ARGV[$Vgra{xyz}] eq "xyz">>.
 
 With most perl modules, the C<.pm> code itself (the part that gets
 found via C<@INC>) is static - it's not generally modified except via
