@@ -1,0 +1,8 @@
+Changes
+MANIFEST
+Makefile.PL
+README
+Ct.pm
+lib/ClearCase/Ct/Profile.pm
+cleartool.plx
+test.pl

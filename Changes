@@ -1,0 +1,30 @@
+Revision history for Perl extension ClearCase::Ct.
+
+0.80  Fri Jul 10 16:23:45 1998
+	- re-implemented as a perl module, starting from
+	  previous fully-functional but non-modular version.
+
+0.85  Tue Jul 28 09:13:45 1998
+	- cleanups; moved more setup code into Ct.pm
+
+0.90  Thu Jul 28 14:15:52 1998
+	- improved pods
+	- employ "autouse" module to improve startup speed
+	- removed "use Env", also for startup speed
+
+0.91  Mon Aug  3 16:45:27 1998
+	- reworked help handling
+	- various performance tuneups
+
+0.92  Wed Aug  5 22:15:26 1998
+	- added 'ctcmnt' command.
+
+0.93  Fri Aug  7 12:47:24 1998
+	- cosmetic improvements
+
+0.95  Sat Aug 15 20:17:11 1998
+	- added config code to allow names other than 'ct'
+
+1.00  Tue Aug 25 19:20:12 EDT 1998
+	- improved docs
+	- first public release

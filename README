@@ -1,0 +1,275 @@
+========================================================================
+			ClearCase::Ct
+========================================================================
+
+Copyright (c) 1997,1998 David Boyce (dsb@world.std.com). All rights
+reserved.  This program is free software; you can redistribute it
+and/or modify it under the same terms as Perl itself.
+
+************************************************************************
+Note: this module is of use only to users of the ClearCase command-line
+interface tool 'cleartool', on Unix or NT systems.
+
+Even if you don't read README files - and you should - please read the
+section entitled "SAMPLE PROFILE" at the very least! But please read
+the whole thing. Sorry it's so long.
+************************************************************************
+
+DESCRIPTION/BACKGROUND
+----------------------
+
+This module has grown well beyond its initial design, which was
+initially inspired by two simple observations:
+
+   1. The configurability of cleartool, as represented by
+   ~/.clearcase_profile, is badly limited. The only thing it can
+   affect is the default comment behavior!
+
+   2. Almost all command-line users of clearcase employ an alias for
+   cleartool (typically 'ct' or 'cl').
+
+Noting these two things together made me think of writing a wrapper
+program which could be installed as 'ct' (or whatever) and could read
+its own config file to allow complete and general control of
+command-line defaults. Install the program, remove the alias, and life
+continues unchanged with no learning curve for users- but the
+sophisticated user now has better control over his/her environment and
+the administrator can now modify global policies and defaults.
+
+Writing it in Perl was an easy choice.  I was originally planning to
+just extend the simple syntax described in the profile_ccase(1) man
+page, using something similar to ConfigReader.pm, until Andy Wardley
+(author of Text::MetaText) pointed out an old quote from Tom
+Christiansen. Tom said something to the effect that if a program is
+written in Perl there's no need to invent and parse a special language
+for its rc-files; just 'require' (aka include) them and let Perl do the
+parsing.  In other words, since perl has access to its own powerful
+parser, RE engine, etc. at runtime, why not use Perl itself as the
+configuration metalanguage? I took this advice gratefully.
+
+So it was decided to write a generic cleartool wrapper script in perl
+and have it search for a set of "profiles" expressing site- and/or
+user-specific configuration. I decided to implement it as a Perl module
+in order to take advantage of the builtin support for searching @INC as
+well as the standard and well known paradigm for packaging and
+installing modules.
+
+So the result is a module, albeit a somewhat "backwards" one. Backwards
+in the sense that with the typical Perl module the .pm file is intended
+to be a black box to the user whereas the executable program which
+uses it is developed and modified locally. But in the case of
+ClearCase::Ct the wrapper program is generic and shouldn't require any
+local mods, while the Profile.pm file is intended as the expression
+of local policy and thus is completely under local control.
+
+It turns out to be a surprisingly powerful mechanism for extending
+command-line ClearCase on Unix or NT, because you can not only modify
+defaults but add your own new flags or even make new pseudo-commands as
+well. Creating a ~/.ct_profile.pl is tougher than a ~/.clearcase_profile
+because you need to be somewhat knowledgeable about Perl, but it also
+removes an upper bound on what can be done.  Once you set Perl loose on
+the command line you can do just about anything with it, as the
+supplied sample profile may demonstrate.
+
+SAMPLE PROFILE
+--------------
+
+The interesting files in this distribution are "ct", "Ct.pm", and
+"Profile.pm". The first is the cleartool wrapper program; it's very
+general and should need no local modification. Ct.pm simply provides
+some useful subroutines and portability infrastructure to ct; it's
+logically part of ct and similarly should be completely opaque to the
+user. Profile.pm is where site-specific customizations should be made.
+
+Profile.pm *should* be delivered empty since I can't predict what
+customizations you may prefer. But in fact I've placed some of my more
+generally useful customizations there for pedagogical purposes. I
+actually spent a lot of time trying to decide whether to deliver these
+in Profile.pm or to bury them in a README or a Profile.pm.sample. On
+the one hand moving it aside would complicate the install process and some
+percentage of users (the ones who don't read readme files) would never
+find it. On the other hand, once it's delivered in-place, no amount of
+protestation will convince some people that it's not part of the
+"product" per se. In the end I decided on the latter strategy but will
+say this loudly in hopes of it being heard:
+
+THE SUPPLIED PROFILE IS A **SAMPLE**.  IT IS **YOURS** TO CONFIGURE,
+ADD TO, OR SUBTRACT FROM AS YOU WISH.
+
+In fact you could truncate your installed Profile.pm to zero-length and
+the wrapper program wouldn't be broken; you'd just lose your
+customizations. Or rather my customizations.
+
+There are a few hard-wired constants in Profile.pm which you will
+certainly need to change for your site in order for those features to
+work, e.g. $ViewStgRoot and $ProfileStgRoot.
+
+Also note that ct also looks for a file called ~/.ct_profile.pl
+containing personal customizations. No sample of this is delivered; the
+syntax is of course no different from that of the site-wide
+Profile.pm.
+
+
+TYPICAL USES / HIGHLIGHTS OF SUPPLIED FEATURES
+----------------------------------------------
+
+Not only can you modify the default behavior of any command as you like
+by adding flags to @ARGV, you can also define options that you've
+always wished for or even build new pseudo-commands on top of existing
+ones. Following are some examples of each of these as implemented in
+the sample Profile.pm.
+
+-> A number of cleartool cmds don't support automated aggregation for
+some reason, so I added it.  Specifically, the sample profile extends
+the common cleartool flags -dir/-rec/-all to the checkin, unco,
+diff, and mkelem commands; thus you can check-in everything in the
+current directory with "ct ci -rec", turn a tree of private files into
+elements with "ct mkelem -rec -ci", print out diffs of all current changes
+in the view with "ct diff -all", etc. This is perhaps the most useful
+feature of the sample profile.
+
+-> The "cleartool lsprivate" command always dumps the entire list of
+view-private files; there's no way to limit it to a particular
+subdirectory. I extended it in Profile.pm to recognize the -rec/urse
+and -dir/ectory flags. Under the covers this is logically just:
+
+   cleartool lsp | sed "?$PWD?s@$PWD/@@"
+
+for -rec/urse and
+
+   cleartool lsp | sed "?$PWD?s@$PWD/@@" | grep -v /
+
+for dir/ectory (it's actually implemented in perl of course) but the
+effect is as if cleartool lsprivate truly handled "[-dir | -rec]" just
+as lsco does. Note that the support for automated aggregation for
+mkelem is built on top of "lsprivate -rec".
+
+-> An example of adding a new flag:  since cleartool find doesn't
+support the -fmt option, I added one in Profile.pm. In reality all it
+does is parse the -fmt flag, remove it from the command line, and then
+exec "cleartool find <find-args> | xargs cleartool desc -fmt
+<fmt-arg>".  But from the user's point of view it looks just like -fmt
+is now supported. Of course this could be handled in other ways or with
+other wrappers, but not in a way which looks just like the real thing.
+
+-> As an example of building a new command, try out "ct edattr".  This
+is a handy extension for modifying attributes, analogous to the "edcs"
+cmd.  Running "ct edattr foo" dumps the attributes of foo and their
+values into a temp file and runs your editor-of-choice on that file.
+When you finish editing the file, it modifies any attributes you've
+modified, adds any you've added, removes any you removed, etc. Types
+are created as required and removed if the removed attribute was the
+last remaining instance.
+
+-> An example of removing a minor irritation: a user complained that
+"cleartool unco" doesn't recognize comment flags such as -nc. This
+bugged him because if after running "ct co -nc <list-of-files>" he
+realized he'd made a mistake, he'd use ^co^unco (csh syntax for
+illustration only) to undo it, only to see cleartool fail on the
+unrecognized -nc. It was trivial to add code to Profile.pm to strip
+comment flags from an unco.
+
+-> There's also some basic support for using ClearCase View Profiles on
+Unix systems, which as of CC 3.2 is unsupported natively. This depends
+on storing your profiles in a Unix-accessible filesystem.  See the
+source.
+
+INSTALLING
+----------
+
+Installation consists of the usual sequence of commands:
+
+   perl Makefile.PL
+   make
+   make test
+   make install
+
+To make a private testing version in your home directory, use instead:
+
+   perl Makefile.PL PREFIX=~
+
+which will cause "make install" to copy files into ~/lib/perl5/....
+Then set the environment variable:
+
+   PERL5LIB=$HOME/lib/perl5:$HOME/lib/perl5/site_perl
+
+and ct should find the local version for as long as that EV is in effect.
+
+Of course, to complete the installation you'll need to put ct somewhere
+on your path and remove the 'ct' alias if you have one.
+
+*Remember to keep your Profile.pm under source control!* Since it's
+locally modified, you don't want to lose your changes when installing
+a newer version of this module!!
+
+PROFILE PROGRAMMING
+-----------
+
+Working with a profile is actually pretty simple.  There are only two
+things to remember:
+
+   1. The global Profile.pm is included first, followed by
+      ~/.ct_profile.pl iff it exists.
+
+   2. At entry to a profile, the variable $_ contains the name of the
+      command, @ARGV contains the command line, and @_ contains a copy
+      of @ARGV.
+
+Thus the following one-liner would change the "ct unco" default from
+-keep to -rm:
+
+   splice(@ARGV, 1, 0, '-rm') if /^unc/ && !grep(/^-kee|^-rm$/, @ARGV);
+
+If you know enough Perl to see that this adds -rm to the command
+line iff the command name matches "unc*" and neither -keep nor -rm was
+supplied explicitly, you know enough to set up a profile. To do more
+complex things it's a good idea to become very familiar with
+Getopt::Long, since it's used heavily to selectively parse the command
+line.
+
+SELF-DOCUMENTATION
+------------------
+
+All the supplied code comes with embedded PODs.  Once the module is
+installed, these can be read via "ct --usage" for help on ct proper,
+and "ct --help" for documentation of specific customizations. The flags
+--verbose and --debug may also be helpful. Note the convention that
+flags starting with "--" are directed at the wrapper whereas "-" flags
+go to cleartool itself (though the wrapper often parses and modifies
+those too).
+
+The Profile.pm documentation can be converted into a more user-friendly
+HTML format via "pod2html Profile.pm".
+
+TESTED PLATFORMS
+----------------
+
+This module is known to work on Solaris 2.5.1 and Windows NT 4.0.
+Although that's only two platforms, the spread between them is wide
+enough that I'd expect it to work without significant modification on
+any other platform that supports perl 5.004 or above.
+
+Note that while the module itself works under NT, most of the code
+provided in the sample Profile.pm has not been exercised there. Some of
+the sample code will definitely not work on NT out of the box.
+
+LATEST VERSION
+--------------
+
+If there's a newer version of this package, it will most likely be
+found on CPAN under my id "DSB". Or you can probably reach me at
+dsb@world.std.com.  Also, some people are speaking of creating a
+"clearperl" archive of ClearCase/Perl code; if that exists by the time
+you read this you may be able to find a newer/better/integrated version
+there.
+
+Note that if you use the CPAN module, you should be able to get the
+latest by installing this, then running "perl -MCPAN -e shell".  Use
+the "r" cmd to tell you what's out of date, and "install ClearCase::Ct"
+to update.
+
+FEEDBACK
+--------
+
+Feel free to communicate bugs, suggestions, or (best of all) patches to
+the above address.
