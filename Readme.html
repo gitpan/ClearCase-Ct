@@ -37,7 +37,7 @@ Profile.pm - site-wide customizations for <EM>ct</EM> wrapper
 <H1><A NAME="VERSION">VERSION
 
 </A></H1>
-1.13
+1.15
 
 
 <P>
@@ -163,8 +163,14 @@ typing the comment.
 
 <P>
 
+Also, automatically supplies -nc to checkins if the element list consists
+of only directories (directories get a default comment).
+
+
+<P>
+
 Also extended to implement a <STRONG>-iff</STRONG> flag. This reduces the supplied list of elements to those truly checked
-out. E.g. <CODE>ct ct -iff *.c</CODE> will check in only the elements which match *.c <STRONG>and</STRONG> are checked out, without producing a lot of errors.
+out. E.g. <CODE>ct ct -iff *.c</CODE> will check in only the elements which match *.c <STRONG>and</STRONG> are checked out, without producing a lot of errors for the others.
 
 
 <P>
@@ -175,6 +181,12 @@ out. E.g. <CODE>ct ct -iff *.c</CODE> will check in only the elements which matc
 Extension: if element being checked out is a symbolic link, silently
 replace it with the name of its target, because for some reason ClearCase
 doesn't do this automatically.
+
+
+<P>
+
+Automatically defaults checkouts to use -nc. This could be done with
+clearcase_profile as well, of course, but is more centralized here.
 
 
 <P>
@@ -303,6 +315,14 @@ of <STRONG>find</STRONG> to a <STRONG>describe -fmt</STRONG>.
 
 <P>
 
+<LI><STRONG><A NAME="item_LS">LS
+
+</A></STRONG>
+On Windows, do the user a favor and handle globbing for DOS shell.
+
+
+<P>
+
 <LI><STRONG><A NAME="item_LSVTREE">LSVTREE
 
 </A></STRONG>
@@ -351,12 +371,12 @@ Same as mkattype above.
 <LI><STRONG><A NAME="item_MKELEM">MKELEM
 
 </A></STRONG>
-Extended to handle the -dir/-rec flags, enabling automated mkelems with
-otherwise the same syntax as original. Directories are also automatically
-checked out as required in this mode. Note that this automatic directory
-checkout is only enabled when the candidate list is derived via the
--dir/-rec flags. If the -ci flag is present, any directories automatically
-checked out are checked back in too.
+Extended to handle the <STRONG>-dir/-rec</STRONG> flags, enabling automated mkelems with otherwise the same syntax as
+original. Directories are also automatically checked out as required in
+this mode. <STRONG>Note that this
+automatic directory checkout is only enabled when the candidate list is
+derived via the <CODE>-dir/-rec</CODE> flags</STRONG>. If the <STRONG>-ci</STRONG> flag is present, any directories automatically checked out are checked back
+in too.
 
 
 <P>

@@ -124,7 +124,7 @@ use strict;
 # then a trigger (or any child process) can actually export variables
 # back into the invoking shell's env by putting the command in ~/.sigusr1
 # and sending SIGUSR1 to the shell. That's why CLEARCASE_SHPID is here.
-$ENV{CLEARCASE_SHPID} = getppid;
+$ENV{CLEARCASE_SHPID} = getppid if !$Win32;
 
 $ENV{_CT_DEBUG} = 1 if $opt_debug;
 $opt_debug ||= $ENV{_CT_DEBUG};
@@ -133,7 +133,7 @@ $opt_debug ||= $ENV{_CT_DEBUG};
 if ($opt_usage || ($ARGV[0] eq 'man' && $ARGV[1] eq $Wrapper)) {
    Exec('perldoc', $0);
 } elsif ($opt_help || ($ARGV[0] eq 'man' && $ARGV[1] =~ /^profile(\.|\Z)/i)) {
-   Exec('perldoc', 'ClearCase::Ct::Profile');
+   Exec(qw(perldoc ClearCase::Ct::Profile));
 }
 
 # We keep a 'recursion stack' in the env in order to detect when
@@ -246,7 +246,7 @@ if (defined $_help_cmd) {
 }
 
 # Optional verbosity.
-warn "+ $Wrapper @ARGV\n" if $opt_verbose && !$opt_quiet;
+warn "+ $ClearCmd @ARGV\n" if $opt_verbose && !$opt_quiet;
 
 # Now exec the real cmd and we're done, unless a post-op eval stack exists.
 # Also exec if running setuid since we won't be running any post-ops anyway.

@@ -8,7 +8,7 @@ Profile.pm - site-wide customizations for I<ct> wrapper
 
 =head1 VERSION
 
-1.13
+1.15
 
 =head1 SYNOPSIS
 
@@ -243,14 +243,17 @@ COMMAND: {
 	 # Anonymous local sub to print out the set of elements we
 	 # derived as 'eligible', whatever that means for that op.
 	 my $showfound = sub {
-	    if (@_ == 0) {
+	    my @fnd = @_;
+	    if (@fnd == 0) {
 	       warn "$ARGV[0]: no eligible elements found\n";
 	       exit 0;
-	    } elsif (@_ <= 10) {
-	       warn "$ARGV[0]: found: @_\n";
-	    } elsif (@_) {
-	       my $i = @_ - 4;
-	       warn "$ARGV[0]: found: @_[0..3] [plus $i more] ...\n";
+	    } elsif (@fnd <= 10) {
+	       if ($Win32) { for (@fnd) { $_ = qq("$_") if /\s/ } }
+	       warn "$ARGV[0]: found: @fnd\n";
+	    } elsif (@fnd) {
+	       if ($Win32) { for (@fnd[0..10]) { $_ = qq("$_") if /\s/ } }
+	       my $i = @fnd - 4;
+	       warn "$ARGV[0]: found: @fnd[0..3] [plus $i more] ...\n";
 	    }
 	 };
 
@@ -274,6 +277,7 @@ COMMAND: {
 	       @new_elems = Qx($0, qw(lsco), @t_argv);
 	    }
 	    chomp @new_elems;
+	    if ($Win32) { for (@new_elems) { $_ = qq("$_") if /\s/ } }
 	    &$showfound(@new_elems);
 	    return @new_elems;
 	 }
@@ -309,12 +313,13 @@ COMMAND: {
 			Qx($ClearCmd, qw(find . -type f -cvi -nxn -print));
 	    }
 	    chomp @checkedin;
+	    if ($Win32) { for (@checkedin) { $_ = qq("$_") if /\s/ } }
 	    &$showfound(@checkedin);
 	    return @checkedin;
 	 }
 
 	 sub PrivateList {
-	    my @cmd = ($0, 'lsp', '-s', @_);
+	    my @cmd = ($0, qw(lsp -s), @_);
 	    if ($AutoOpt{all}) {
 	       push(@cmd, '-all');
 	    } elsif ($AutoOpt{recurse}) {
@@ -324,6 +329,7 @@ COMMAND: {
 	    }
 	    my @new_elems = Qx(@cmd, '--reread');
 	    chomp @new_elems;
+	    #if ($Win32) { for (@new_elems) { $_ = qq("$_") if /\s/ && !/"/} }
 	    &$showfound(@new_elems);
 	    return @new_elems;
 	 }
@@ -429,7 +435,7 @@ order to print a complete config spec.
       if ($Opt{expand}) {
 	 $op = 'print';;
       } elsif ($Opt{source}) {
-	 $op = 's%##:Source:\s+(\S+)|element\s+(\S*)/\.{3}\s%print "$+\n";exit 0%e';
+	 $op = 's%##:Source:\s+(\S+)|^\s*element\s+(\S*)/\.{3}\s%print "$+\n";exit 0%e';
       } elsif ($Opt{vobs}) {
 	 $op = 's%^element\s+(\S+)/\.{3}\s%print "$1\n"%e';
       } elsif ($Opt{project}) {
@@ -465,33 +471,46 @@ Extended to implement a B<-diff> flag, which runs a B<I<ct diff -pred>>
 command before each checkin so the user can look at his/her changes
 before typing the comment.
 
+Also, automatically supplies -nc to checkins if the element list
+consists of only directories (directories get a default comment).
+
 Also extended to implement a B<-iff> flag. This reduces the supplied list
 of elements to those truly checked out. E.g. C<ct ct -iff *.c> will check
 in only the elements which match *.c B<and> are checked out, without
-producing a lot of errors.
+producing a lot of errors for the others.
 
 =cut
 
    if (/^ci$|^checkin$/) {
-      # Extension: handle AutoOpt flags (parsed above).
-      push(@ARGV, CheckedOutList(\@ARGV,
-			      "c|cfile=s", "cqe|nc",
-			      "nwarn|cr|ptime|identical|rm", "from=s",
-			      "diff|graphical|tiny|hstack|vstack|predecessor",
-			      "serial_format|diff_format|window",
-			      "columns|options=s"))
-	    if (keys %AutoOpt);
+      my @ci_flags = qw(c|cfile=s cqe|nc 
+			nwarn|cr|ptime|identical|rm from=s 
+			diff|graphical|tiny|hstack|vstack|predecessor 
+			serial_format|diff_format|window 
+			columns|options=s);
+
+      if (keys %AutoOpt) {
+	 # Extension: handle AutoOpt flags (parsed above).
+	 push(@ARGV, CheckedOutList(\@ARGV, @ci_flags));
+      } else {
+	 # Or: automatically glob explicit args (on Windows).
+	 @ARGV = DosGlob(\@ARGV, @ci_flags) if $Win32;
+      }
 
       # If the user tries to check in a symlink, replace it with
-      # the path to the actual element. Same as at checkout time.
+      # the path to the actual element. Same at checkout time.
       for (@ARGV[1..$#ARGV]) { $_ = readlink if -l && defined readlink }
 
-      # It's too easy for users to kill a putative checkin-post
-      # trigger via Ctrl-C. We don't want to ignore all
-      # signals, just the one which is easy to send via the
-      # keyboard - i.e. make them do a kill -HUP if they really need to
-      # kill the trigger.
-      $SIG{INT} = 'IGNORE';	## this does not appear to be effective
+      # Default to -nc if checking in directories.
+      if (!grep(/^-c$|^-cq|^-nc$|^-cfi/, @ARGV)) {
+	 my $alldirs = 1;
+	 for (RemainingOptions(\@ARGV, qw(
+		  cqe|nc|nwarn|cr|ptime|identical|rm c|cfile|from=s
+		  serial_format|diff_format|window context
+		  graphical|tiny|hstack|vstack|predecessor options=s))) {
+	    $alldirs = 0 if ! -d;
+	 }
+	 splice(@ARGV, 1, 0, '-nc') if $alldirs;
+      }
 
       my($opt_ci_diff, $opt_ci_revert, $opt_ci_iff);
       {
@@ -560,9 +579,12 @@ producing a lot of errors.
 
 =item * CO/CHECKOUT
 
-Extension: if element being checked out is a symbolic link,
-silently replace it with the name of its target, because for
-some reason ClearCase doesn't do this automatically.
+Extension: if element being checked out is a symbolic link, silently
+replace it with the name of its target, because for some reason
+ClearCase doesn't do this automatically.
+
+Automatically defaults checkouts to use -nc. This could be done with
+clearcase_profile as well, of course, but is more centralized here.
 
 =item * EDIT
 
@@ -583,11 +605,14 @@ editor on all currently checked-out files.
       # do this or at least provide a -L flag.
       for (@ARGV[1..$#ARGV]) { $_ = readlink if -l && defined readlink }
 
-      push(@ARGV, CheckedInList(\@ARGV, "out|branch=s", "c|cfile=s", "cqe|nc",
-			   "reserved|unreserved|ndata|version|nwarn"))
+      # Implement -dir/-rec/-all.
+      push(@ARGV, CheckedInList(\@ARGV, qw(out|branch=s c|cfile=s cqe|nc
+			   reserved|unreserved|ndata|version|nwarn)))
 	 if (keys %AutoOpt);
 
-      if (/^edit$/) {
+      if (/^co$|^checkout$/) {
+	 splice(@ARGV, 1, 0, '-nc') if !grep(/^-c$|^-cq|^-nc$|^-cfi/, @ARGV);
+      } elsif (/^edit$/) {
 	 # Special hack - -dir/-rec execs editor on current checkouts
 	 Exec($Editor, CheckedOutList(\@ARGV)) if keys %AutoOpt;
 
@@ -834,7 +859,6 @@ doesn't support modification of attributes.
 	       if (System("$ClearCmd lstype attype:$attr >$DevNull 2>&1")) {
 		  if ($newval =~ /^".*"$/) {
 		     System($ClearCmd, qw(mkattype -nc -vty string), $attr);
-		     $newval = "\\\"$newval\\\"" if $Win32;
 		  } elsif ($newval =~ /^[+-]?\d+$/) {
 		     System($ClearCmd, qw(mkattype -nc -vty integer), $attr);
 		  } elsif ($newval =~ /^-?\d+\.?\d*$/) {
@@ -843,11 +867,14 @@ doesn't support modification of attributes.
 		     System($ClearCmd, qw(mkattype -nc -vty opaque), $attr);
 		  }
 	       }
+	       # Hack to make string-typed attrs work on ^%@# Windows.
+	       $newval = "\\\"$newval\\\"" if $Win32 && $newval =~ /^".*"$/;
 	       if (defined($oldval)) {
-		  $retstat++ if System($ClearCmd, qw(mkattr -replace -c),
-				 "(Was: $oldval)", $attr, $newval, $elem);
+		  my $cmnt = $Win32 ? qq("(Was: $oldval)") : "(Was: $oldval)";
+		  $retstat++ if System($ClearCmd, qw(mkattr -rep -c),
+				 $cmnt, $attr, $newval, $elem);
 	       } else {
-		  $retstat++ if System($ClearCmd, qw(mkattr -replace),
+		  $retstat++ if System($ClearCmd, qw(mkattr -rep),
 				 $attr, $newval, $elem);
 	       }
 	    } else {
@@ -933,7 +960,7 @@ behaving the same way on NT as well.
       GetOptions("i" => \$opt_i, "f" => \$opt_f);
       for my $inode (reverse PrivateList(qw(-other -do))) {
 	 if ($opt_i || ! $opt_f) {
-	    $_ = Prompt('text', '-pro', "$ARGV[0]: remove $inode (yes/no)? ");
+	    $_ = Prompt(qw(text -pro), "$ARGV[0]: remove '$inode' (yes/no)? ");
 	    next unless /y/i;
 	 }
 	 if (-d $inode) {
@@ -966,6 +993,16 @@ results of B<find> to a B<describe -fmt>.
       last COMMAND;
    }
 
+=item * LS
+
+On Windows, do the user a favor and handle globbing for DOS shell.
+
+=cut
+
+   if (/^ls$/) {
+      @ARGV = DosGlob(\@ARGV) if $Win32;
+   }
+
 =item * LSVTREE
 
 Modified default to always use B<-a> flag.
@@ -996,19 +1033,21 @@ specified, such that 'ct lsprivate .' restricts output to cwd.
 
       # Extension: allow [-dir|-rec|-all]
       if ($AutoOpt{recurse} || $AutoOpt{directory}) {
-	 my $dir = fastcwd();
+	 chomp(my $dir = fastcwd());
 	 $dir =~ s/^[A-Z]:// if $Win32;
-	 my @privs = sort `$ClearCmd @ARGV`;
+	 chomp(my @privs = sort `$ClearCmd @ARGV`);
 	 for (@privs) { s%\\%/%g }
+	 my @chosen;
 	 if ($AutoOpt{recurse}) {
-	    print map {$_ eq "\n" ? ".\n" : $_}
-		  map {m%^$dir/(.*)%s} 
-		  map {$_ eq $dir ? "$dir/" : $_} @privs;
-	 } elsif (! $AutoOpt{all}) {
-	    print map {$_ eq "\n" ? ".\n" : $_}
+	    @chosen = map {$_ || '.'}
+		  map {m%^$dir/(.*)%} 
+		  map {$_ eq $dir ? "$_/" : $_} @privs;
+	 } elsif ($AutoOpt{directory}) {
+	    @chosen = map {$_ || '.'}
 		  map {m%^$dir/([^/]*)$%s}
-		  map {$_ eq $dir ? "$dir/" : $_} @privs;
+		  map {$_ eq $dir ? "$_/" : $_} @privs;
 	 }
+	 for (@chosen) { print $_, "\n"; }
 	 exit;
       }
 
@@ -1068,12 +1107,12 @@ Same as mkattype above.
 
 =item * MKELEM
 
-Extended to handle the -dir/-rec flags, enabling automated mkelems with
-otherwise the same syntax as original. Directories are also
-automatically checked out as required in this mode. Note that this
+Extended to handle the B<-dir/-rec> flags, enabling automated mkelems
+with otherwise the same syntax as original. Directories are also
+automatically checked out as required in this mode. B<Note that this
 automatic directory checkout is only enabled when the candidate list is
-derived via the -dir/-rec flags.  If the -ci flag is present, any
-directories automatically checked out are checked back in too.
+derived via the C<-dir/-rec> flags>.  If the B<-ci> flag is present,
+any directories automatically checked out are checked back in too.
 
 =cut
 
@@ -1100,8 +1139,8 @@ directories automatically checked out are checked back in too.
       # it's already been done.
       for (@candidates) {
 	 my $d = dirname($_);
-	 next if $dirs{$d};
-	 my $lsd = `$ClearCmd ls -d $d`;
+	 next if ! $d || $dirs{$d};
+	 my $lsd = qx($ClearCmd ls -d "$d");
 	 # If no version selector given, it's a view-private dir and
 	 # will be handled below.
 	 next unless $lsd =~ /\sRule:\s/;
@@ -1110,7 +1149,15 @@ directories automatically checked out are checked back in too.
 	 # Now we know it's an element and needs to be checked out.
 	 $dirs{$d}++;
       }
-      exit $?>>8 if keys %dirs && System($ClearCmd, qw(co -nc), keys %dirs);
+
+      # Now mkelem the dirs. God I hate Windows.
+      if ($Win32) {
+	 for (keys %dirs) {
+	    exit $?>>8 if System($ClearCmd, qw(co -nc), qq("$_"));
+	 }
+      } else {
+	 exit $?>>8 if keys %dirs && System($ClearCmd, qw(co -nc), keys %dirs);
+      }
 
       # Process candidate directories here, then do files below.
       for my $cand (@candidates) {
@@ -1125,9 +1172,16 @@ directories automatically checked out are checked back in too.
 	 # back into the new dir (still as view-private files).
 	 my $tmpdir = "$cand.$$.keep.d";
 	 Die "$cand: $!" unless rename($cand, $tmpdir);
-	 if(System($ClearCmd, qw(mkdir -nc), $cand)) {
-	    rename($tmpdir, $cand);
-	    exit 1;
+	 if ($Win32) {
+	    if(System($ClearCmd, qw(mkdir -nc), qq("$cand"))) {
+	       rename($tmpdir, $cand);
+	       exit 1;
+	    }
+	 } else {
+	    if(System($ClearCmd, qw(mkdir -nc), $cand)) {
+	       rename($tmpdir, $cand);
+	       exit 1;
+	    }
 	 }
 	 opendir(DIR, $tmpdir) || Die "$tmpdir: $!";
 	 while (defined(my $i = readdir(DIR))) {
@@ -1140,16 +1194,33 @@ directories automatically checked out are checked back in too.
 	 $dirs{$cand}++;
       }
 
-      # Now we've made all the directories - do the files in one
-      # fell swoop.
-      System($ClearCmd, @ARGV) if @files;
+      # Now we've made all the directories - do the files in one fell
+      # swoop. Except on *&#@ Windows where we must do them one at a
+      # time for quoting reasons.
+      if ($Win32) {
+	 local(@ARGV) = @ARGV[1..$#ARGV];  # operate on temp argv
+	 my @flags = StripOptions(\@ARGV,
+	       "eltype=s", "nco|ci|ptime|master|nwarn", "cqe|nc", "c|cfile=s");
+	 for (@ARGV) { System($ClearCmd, q(mkelem), @flags, qq("$_")); }
+      } else {
+	 System($ClearCmd, @ARGV) if @files;
+      }
 
       # Now, if the -ci flag was supplied, check the dirs back in.
       my $opt_mkelem_ci;
       ReadOptions(\@ARGV, "ci" => \$opt_mkelem_ci);
-      exit $?>>8
-	 if $opt_mkelem_ci && keys %dirs &&
-	    System($ClearCmd, qw(ci -nc), keys %dirs);
+      if ($opt_mkelem_ci && keys %dirs) {
+	 # More weird *&#@ quoting for win32.
+	 if ($Win32) {
+	    my $ret;
+	    for(keys %dirs) {
+	       $ret ||= System($ClearCmd, qw(ci -nc), qq("$_"));
+	    }
+	    exit $ret>>8 if $ret;
+	 } else {
+	    exit $?>>8 if System($ClearCmd, qw(ci -nc), keys %dirs);
+	 }
+      }
 
       exit 0;
    }

@@ -4,8 +4,8 @@ Makefile.PL
 README
 TODO
 Ct.pm
+Readme.html
 lib/ClearCase/Ct/Profile.pm
-Profile.html
 cleartool.plx
 test.pl
 SiteProfile.pm.sample

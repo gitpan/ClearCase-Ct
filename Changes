@@ -68,3 +68,12 @@ Revision history for Perl extension ClearCase::Ct.
 
 1.13  Wed Jan 13 20:54:50 EST 1999
 	- fixed bug resulting in "ct diff -pred -pred <file>"
+
+1.14  Tue Feb 16 16:52:06 EST 1999
+	- fixed NT cmd.exe porting problem with fastcwd()
+
+1.15 Wed Mar 10 23:33:22 EST 1999
+	- Added automatic globbing on Win32 systems.
+	- Fixed --verbose output to show full cmd name.
+	- Fixed a number of bugs relating to filenames containing
+	  whitespace (mostly on Windows).

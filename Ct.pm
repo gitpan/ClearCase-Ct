@@ -22,7 +22,7 @@ use vars qw($VERSION @ISA @EXPORT_OK %EXPORT_TAGS);
 require Exporter;
 
 @ISA = qw(Exporter);
-$VERSION = '1.13';
+$VERSION = '1.15';
 
 use strict;
 
@@ -42,8 +42,9 @@ $ENV{HOME} ||= "$ENV{HOMEDRIVE}/$ENV{HOMEPATH}";
 use vars qw($Win32 $Wrapper $CCHome $ClearCmd $DevNull
 	    $Editor $TmpDir $Setuid %Vgra);
 
-@EXPORT_OK = qw(Dbg Die Warn Exec System Qx Prompt
+@EXPORT_OK = qw(Dbg Die Warn Exec System Qx Prompt DosGlob
 	        ReadOptions StripOptions RemainingOptions
+		SplitArgv
 		chdir fastcwd fileparse basename dirname
 	        $Win32 $Wrapper $CCHome $ClearCmd $DevNull
 	        $Editor $TmpDir $Setuid %Vgra);
@@ -64,7 +65,7 @@ $TmpDir = $ENV{TMPDIR} || $ENV{TEMP} || $ENV{TMP} ||
 	    ($Win32 ? '/winnt/temp' : '/tmp');
 
 # Adjust $0 to make sure it represents a fully-qualified path.
-$0 = join('/', $ENV{PWD} || ::fastcwd(), $0) if $0 !~ m%^[/\\]|^[a-z]:\\%i;
+$0 = join('/', $ENV{PWD} || fastcwd(), $0) if $0 !~ m%^[/\\]|^[a-z]:\\%i;
 
 # Convert any backslashes in $0 to forward slashes for consistency.
 $0 =~ s%\\%/%g if $Win32;
@@ -188,7 +189,7 @@ sub Qx
    Dbg("Qx: @_", 1);
    # No fork() on &^&#@$ Win32.
    if ($Win32) {
-      return `@_`;
+      return qx(@_);
    } else {
       die unless defined(my $pid = open(CHILD, "-|"));
       if ($pid) {			#parent
@@ -225,6 +226,53 @@ sub Prompt
    close(TMPF);
    unlink $tmpf;
    return $response;
+}
+
+=item * DosGlob(LIST)
+
+On Windows, do the user a favor and handle globbing for DOS shell (as
+well as possible).  Should generally be used after parsing options out
+of the list so C<'-c "changed foo from char * to void *"'> doesn't get
+modified.  Idea courtesy of Kenneth Olwing <K.Olwing@abalon.se>.
+
+Takes a reference to a list plus an optional following list. Returns a
+globbed list. The optional list, if present, is treated as a list of
+option flags we want to parse off the argv before globbing what
+remains.
+
+=cut
+
+sub DosGlob {
+   my $r_ARGV = shift;
+   if ($Win32) {
+      # parse out supplied flags before globbing
+      local @ARGV = @$r_ARGV;
+      my($r_opts, $r_elems);
+      if (@_) {
+	 ($r_opts, $r_elems) = SplitArgv(@_);
+      } else {
+	 $r_elems = \@ARGV;
+      }
+      my @_argv = ();
+      for (@$r_elems) {
+	 if (/^'(.*)'$/) {		# allow '' to escape globbing
+	    push(@_argv, $1);
+	 } elsif (/[*?]/) {
+	    push(@_argv,  glob)
+	 } else {
+	    push(@_argv, $_)
+	 }
+      }
+      # Now quote filenames with whitespace for when they get exposed to
+      # another DOS shell.
+      for (@_argv) { $_ = qq("$_") if /\s/ }
+      # And put back the flags.
+      splice(@_argv, 1, 0, @$r_opts) if $r_opts;
+      Dbg("ARGV globbed to '@_argv'", 1) if @ARGV != @_argv;
+      return @_argv;
+   } else {
+      return @$r_ARGV;
+   }
 }
 
 =item * Option Parsing
@@ -281,6 +329,38 @@ sub RemainingOptions
    my %null = ();
    Getopt::Long::GetOptions(\%null, @_);
    return @ARGV;
+}
+
+=item 4. SplitArgv(LIST)
+
+Uses GetOptions to break the current scope's @ARGV into two arrays,
+a list of options and a list of arguments, and returns references to
+them. Example:
+
+    my($r_opts, $r_args) = SplitArgv(qw(c|cfile=s cq|cqe|nc));
+
+would assign any of the standard comment flags C<(-c, -nc, etc.)> to the array
+known as @$r_opts, and any remaining arguments (presumably element names)
+to @$r_args. Normally you'd want to pass it the full list of options
+accepted by the current ClearCase command, of course.
+
+The syntax is identical to that for Getopt::Long::GetOptions(). Notice 
+that we cluster flags of like type together as if they were synonyms even
+when they're not; this is ok since we're only interested in finding the
+right number of them, not in applying any semantics here.
+
+=cut
+
+sub SplitArgv(@)
+{
+   my @orig = @ARGV;
+   local @ARGV = @ARGV;
+   my(@opts, %null, %vgra);
+
+   Getopt::Long::GetOptions(\%null, @_);
+   for (0..$#ARGV) { $vgra{$ARGV[$_]} = 1 }
+   for (@orig) { push(@opts, $_) unless $vgra{$_} }
+   return (\@opts, \@ARGV);
 }
 
 =back

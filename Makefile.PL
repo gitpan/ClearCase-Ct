@@ -3,7 +3,8 @@ use File::Copy;
 my $Name;
 
 # Generate an HTML file from the Profile.pm POD.
-system qw(pod2html lib/ClearCase/Ct/Profile.pm --outfile=Profile.html);
+system qw(pod2html lib/ClearCase/Ct/Profile.pm --outfile=Readme.html);
+
 
 # Hack to allow installer to choose name of front-end cmd.
 if (! -f Makefile) {
@@ -44,6 +45,6 @@ WriteMakefile(
 	  DIST_DEFAULT => 'all tardist',
 	  SUFFIX => '.gz',
 	  COMPRESS => 'gzip -f',
-	  POSTOP => q(rm -f Profile.html cleartool.plx.orig && ct unco -rm cleartool.plx ||:),
+	  POSTOP => q(rm -f cleartool.plx.orig && ct unco -rm cleartool.plx ||:),
     },
 );
