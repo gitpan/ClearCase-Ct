@@ -3,7 +3,7 @@ use File::Copy;
 my $Name;
 
 # Generate an HTML file from the Profile.pm POD.
-system qw(pod2html Profile.pm --outfile=Profile.html);
+system qw(pod2html lib/ClearCase/Ct/Profile.pm --outfile=Profile.html);
 
 # Hack to allow installer to choose name of front-end cmd.
 if (! -f Makefile) {
@@ -23,7 +23,11 @@ if (! -f Makefile) {
    unlink $Name;
    copy('cleartool.plx', $Name) || die "$Name: $!";
    print "Ok, it will be installed as '$Name' ...\n\n";
-   chmod 0555, $Name || warn "$Name: $!";
+   if ($^O =~ /win32/i) {
+      pl2bat ct;
+   } else {
+      chmod 0555, $Name || warn "$Name: $!";
+   }
 }
 
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence

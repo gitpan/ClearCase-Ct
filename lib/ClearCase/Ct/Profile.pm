@@ -2,8 +2,8 @@
 
 use vars qw($VERSION);
 
-# Note that this version can move independently of the one in Ct.pm.
-$VERSION = '1.05';
+# Note: this version may move independently of the one in Ct.pm.
+$VERSION = '1.07';
 
 =head1 NAME
 
@@ -11,8 +11,8 @@ Profile.pm - site-wide customizations for B<ct> wrapper
 
 =head1 SYNOPSIS
 
-This is the local profile for the B<ct> program, which functions as a
-wrapper for B<cleartool>, thus allowing the command-line interface of
+This perl module functions as a
+wrapper for B<cleartool>, allowing the command-line interface of
 B<cleartool> to be extended or modified. It allows defaults to be
 changed, new flags to be added to existing B<cleartool> commands, or
 entirely new B<cleartool> commands to be synthesized.
@@ -25,15 +25,15 @@ to clearcase.
 Here's a quick overview of the extensions available via B<ct> which may
 be of interest to users:
 
-A number of commands have been enhanced to simulate the standard
-I<cleartool> flags B<-dir>, B<-rec>, and B<-all>, which cause the
-command to operate on (respectively) all eligible elements in the
-current dir, the current dir recursively, and the current vob. The
-enhanced commands include B<checkin/ci>, B<unco>, B<diff>, B<mkelem>,
-and B<lsprivate>.  Thus you can check in all your current checkouts
-with B<ct ci -all> or see the view-private files in and under the
-current dir with B<ct lsprivate -rec>. You can convert a tree of
-view-private data into elements with B<ct mkelem -rec -ci>.
+Many I<cleartool> commands have been enhanced to simulate the standard
+flags B<-dir>, B<-rec>, and B<-all>, which cause the command to operate
+on (respectively) all eligible elements in the current dir, the current
+dir recursively, and the current vob. The enhanced commands include
+B<checkin/ci>, B<unco>, B<diff>, B<mkelem>, and B<lsprivate>.  Thus you
+can check in all your current checkouts with B<ct ci -all> or see the
+view-private files in and under the current dir with B<ct lsprivate
+-rec>. You can convert a tree of view-private data into elements with
+B<ct mkelem -rec -ci>.
 
 The B<ct checkin> command is also enhanced to take a B<-diff> flag which
 prints your changes to the screen before prompting for a comment.
@@ -980,9 +980,9 @@ Extended in the following ways:
 
 =over 4
 
-=item 1. New B<-me> flag
+=item 1. New I<-me> flag
 
-Supports the B<-me> flag to prepend $LOGNAME to the view name,
+Supports the I<-me> flag to prepend $LOGNAME to the view name,
 separated by an underscore. This enables the convention that all user
 views be named B<E<lt>usernameE<gt>_E<lt>whateverE<gt>>.
 
@@ -993,7 +993,7 @@ name. Thus a user can simply type B<"mkview -me -tag foo"> and the view
 will be created as E<lt>usernameE<gt>_foo with the view storage placed
 in a default location determined by the sysadmin.
 
-=item 3. New B<-profile> flag
+=item 3. New I<-profile> flag
 
 The user can associate the view with a I<ClearCase View Profile>.
 Although, as of CC 3.2 these can only be manipulated on Windows NT,
@@ -1004,7 +1004,7 @@ text is modified to replace backslashes with forward slashes, correct
 line-termination characters, and is then instantiated in the config
 spec. The B<ct synccs> command can be used to resync.
 
-#=item 4. New B<-back> flag
+#=item 4. New I<-back> flag
 #This is an advanced topic ...
 
 ## Note: to use the default view-storage feature you must define
@@ -1234,7 +1234,7 @@ Working on a profile is actually quite easy if you remember that within
 it B<$_> is set to the command name, B<@ARGV> is the complete command
 line and B<@_> is a copy of it, B<$0> is the path to the wrapper, and
 B<$ClearCmd> is the path to the real I<cleartool> program.  Also, the
-hash B<%Vgra> is a reverse lookup such that B<I<$ARGV[$Vgra{xyz}] eq "xyz">>.
+hash B<%Vgra> is a reverse lookup such that C<I<$ARGV[$Vgra{xyz}] eq "xyz">>.
 
 With most perl modules, the C<.pm> code itself (the part that gets
 found via C<@INC>) is static - it's not generally modified except via
@@ -1254,9 +1254,9 @@ by the client program B<ct>.
 The B<ct> program is normally expected to be used under that name,
 which means that users running B<cleartool lsco>, for instance, will go
 around the wrapper.  However, it's also designed to allow for complete
-wrapping if desired. To do so, move $ATRIAHOME/bin/cleartool to
-$ATRIAHOME/bin/wrapped/cleartool and install B<ct> as
-$ATRIAHOME/bin/cleartool. You can continue to install/link the wrapper
+wrapping if desired. To do so, move C<$ATRIAHOME/bin/cleartool> to
+C<$ATRIAHOME/bin/wrapped/cleartool> and install B<ct> as
+C<$ATRIAHOME/bin/cleartool>. You can continue to install/link the wrapper
 as B<ct> as well - it won't invoke the wrapper twice because it
 contains code to detect the presence of the moved-aside binary and run
 it.

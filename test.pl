@@ -1,7 +1,8 @@
 # Before `make install' is performed this script should be runnable with
 # `make test'. After `make install' it should work as `perl test.pl'
 
-my $cchome = $ENV{ATRIAHOME} || '/usr/atria';
+my $cchome = $ENV{ATRIAHOME} || ($^O =~ /win32/i ? 'C:/atria' : '/usr/atria');
+
 if (! -d $cchome) {
    warn "\nNo ClearCase installed on this system, skipping test ...\n";
    exit 0

@@ -36,7 +36,7 @@ Profile.pm - site-wide customizations for <STRONG>ct</STRONG> wrapper
 <H1><A NAME="SYNOPSIS">SYNOPSIS
 
 </A></H1>
-This is the local profile for the <STRONG>ct</STRONG> program, which functions as a wrapper for <STRONG>cleartool</STRONG>, thus allowing the command-line interface of
+This perl module functions as a wrapper for <STRONG>cleartool</STRONG>, allowing the command-line interface of
 <STRONG>cleartool</STRONG> to be extended or modified. It allows defaults to be changed, new flags to
 be added to existing <STRONG>cleartool</STRONG> commands, or entirely new <STRONG>cleartool</STRONG> commands to be synthesized.
 
@@ -59,10 +59,12 @@ Here's a quick overview of the extensions available via <STRONG>ct</STRONG> whic
 
 <P>
 
-A number of commands have been enhanced to simulate the standard
-<EM>cleartool</EM> flags <STRONG>-dir</STRONG>, <STRONG>-rec</STRONG>, and <STRONG>-all</STRONG>, which cause the command to operate on (respectively) all eligible
+Many <EM>cleartool</EM> commands have been enhanced to simulate the standard flags <STRONG>-dir</STRONG>, <STRONG>-rec</STRONG>, and <STRONG>-all</STRONG>, which cause the command to operate on (respectively) all eligible
 elements in the current dir, the current dir recursively, and the current
-vob. The enhanced commands include <STRONG>checkin/ci</STRONG>, <STRONG>unco</STRONG>, <STRONG>diff</STRONG>, <STRONG>mkelem</STRONG>, and <STRONG>lsprivate</STRONG>. Thus you can check in all your current checkouts with <STRONG>ct ci -all</STRONG> or see the view-private files in and under the current dir with <STRONG>ct lsprivate -rec</STRONG>. You can convert a tree of view-private data into elements with <STRONG>ct mkelem -rec -ci</STRONG>.
+vob. The enhanced commands include
+<STRONG>checkin/ci</STRONG>, <STRONG>unco</STRONG>, <STRONG>diff</STRONG>, <STRONG>mkelem</STRONG>, and <STRONG>lsprivate</STRONG>. Thus you can check in all your current checkouts with <STRONG>ct ci -all</STRONG> or see the view-private files in and under the current dir with <STRONG>ct lsprivate
+-rec</STRONG>. You can convert a tree of view-private data into elements with
+<STRONG>ct mkelem -rec -ci</STRONG>.
 
 
 <P>
@@ -384,7 +386,7 @@ Extended in the following ways:
 <LI><STRONG><A NAME="item_New_me_flag"> New -me flag
 
 </A></STRONG>
-Supports the <STRONG>-me</STRONG> flag to prepend <CODE>$LOGNAME</CODE> to the view name, separated by an
+Supports the <EM>-me</EM> flag to prepend <CODE>$LOGNAME</CODE> to the view name, separated by an
 underscore. This enables the convention that all user views be named <STRONG>&lt;username&gt;_&lt;whatever&gt;</STRONG>.
 
 
@@ -413,7 +415,7 @@ spec. The <STRONG>ct synccs</STRONG> command can be used to resync.
 
 <P>
 
-#=item 4. New <STRONG>-back</STRONG> flag #This is an advanced topic ...
+#=item 4. New <EM>-back</EM> flag #This is an advanced topic ...
 
 
 <P>
@@ -470,7 +472,7 @@ Extended to support the <STRONG>-me</STRONG> flag (prepends &lt;<STRONG>username
 
 </A></H1>
 Working on a profile is actually quite easy if you remember that within it <STRONG>$_</STRONG> is set to the command name, <STRONG>@ARGV</STRONG> is the complete command line and <STRONG>@_</STRONG> is a copy of it, <STRONG>$0</STRONG> is the path to the wrapper, and
-<STRONG>$ClearCmd</STRONG> is the path to the real <EM>cleartool</EM> program. Also, the hash <STRONG>%Vgra</STRONG> is a reverse lookup such that <STRONG><EM>$ARGV[$Vgra{xyz}] eq "xyz"</EM></STRONG>.
+<STRONG>$ClearCmd</STRONG> is the path to the real <EM>cleartool</EM> program. Also, the hash <STRONG>%Vgra</STRONG> is a reverse lookup such that <CODE><EM>$ARGV[$Vgra{xyz}] eq "xyz"</EM></CODE>.
 
 
 <P>
@@ -493,9 +495,9 @@ is to operate directly on the namespace provided by the client program <STRONG>c
 
 The <STRONG>ct</STRONG> program is normally expected to be used under that name, which means that
 users running <STRONG>cleartool lsco</STRONG>, for instance, will go around the wrapper. However, it's also designed to
-allow for complete wrapping if desired. To do so, move
-$ATRIAHOME/bin/cleartool to $ATRIAHOME/bin/wrapped/cleartool and install <STRONG>ct</STRONG> as $ATRIAHOME/bin/cleartool. You can continue to install/link the wrapper
-as <STRONG>ct</STRONG> as well - it won't invoke the wrapper twice because it contains code to
+allow for complete wrapping if desired. To do so, move <CODE>$ATRIAHOME/bin/cleartool</CODE> to
+<CODE>$ATRIAHOME/bin/wrapped/cleartool</CODE> and install <STRONG>ct</STRONG> as
+<CODE>$ATRIAHOME/bin/cleartool</CODE>. You can continue to install/link the wrapper as <STRONG>ct</STRONG> as well - it won't invoke the wrapper twice because it contains code to
 detect the presence of the moved-aside binary and run it.
 
 

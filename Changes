@@ -40,3 +40,9 @@ Revision history for Perl extension ClearCase::Ct.
 1.05  Tue Sep 22 11:35:59 EDT 1998
 	- minor tweaks in documentation
 	- added code to change mktype defaults to -global
+
+1.06  Thu Sep 24 20:44:56 EDT 1998
+	- fixed minor packaging errors
+
+1.07  Wed Oct  7 17:37:58 EDT 1998
+	- fixed NT packaging problems
