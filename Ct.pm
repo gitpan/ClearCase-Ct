@@ -13,9 +13,9 @@ the C<ct> wrapper program and the ClearCase::Ct::Profile module.
 
 =head1 COPYRIGHT
 
-Copyright (c) 1997,1998,1999 David Boyce (dsb@world.std.com). All rights
-reserved.  This perl program is free software; you may redistribute it
-and/or modify it under the same terms as Perl itself.
+Copyright (c) 1997,1998,1999,2000 David Boyce (dsb@world.std.com). All
+rights reserved.  This Perl program is free software; you may
+redistribute it and/or modify it under the same terms as Perl itself.
 
 =head1 DESCRIPTION
 
@@ -28,12 +28,12 @@ use vars qw($VERSION @ISA @EXPORT_OK %EXPORT_TAGS);
 require Exporter;
 
 @ISA = qw(Exporter);
-$VERSION = '1.17';
+$VERSION = '1.20';
 
 use strict;
 
 # Get more portable handling of chdir plus $PWD tracking, etc.
-use autouse 'Cwd' => qw(chdir fastcwd);
+use Cwd qw(chdir);
 
 # Similarly for filename parsing.
 use autouse 'File::Basename' => qw(fileparse basename dirname);
@@ -45,19 +45,19 @@ use autouse 'File::Basename' => qw(fileparse basename dirname);
 $ENV{LOGNAME} ||= lc $ENV{USERNAME};
 $ENV{HOME} ||= "$ENV{HOMEDRIVE}/$ENV{HOMEPATH}";
 
-use vars qw($Win32 $Wrapper $CCHome $ClearCmd $DevNull
+use vars qw($Win32 $Wrapper $CCHome $CT $DevNull
 	    $Editor $TmpDir $Setuid %Vgra);
 
 @EXPORT_OK = qw(Dbg Die Warn Exec System Qx Prompt DosGlob
 	        ReadOptions StripOptions RemainingOptions
 		SplitArgv
-		chdir fastcwd fileparse basename dirname
-	        $Win32 $Wrapper $CCHome $ClearCmd $DevNull
+		chdir fileparse basename dirname
+	        $Win32 $Wrapper $CCHome $CT $DevNull
 	        $Editor $TmpDir $Setuid %Vgra);
 %EXPORT_TAGS = ( 'all' => [@EXPORT_OK] );
 
 # To avoid having to use an RE on $^O each time or use Config.
-$Win32 = ($^O =~ /win32/i);
+$Win32 = ($^O =~ /win32|Windows_NT/i);
 
 # In aid of Unix/NT portability.
 $DevNull = $Win32 ? 'NUL' : '/dev/null';
@@ -75,7 +75,7 @@ $TmpDir = $Win32 ?
 $Editor = 'xvi' if !$Win32 && $ENV{ATRIA_FORCE_GUI} && $Editor =~ /\w*vi\w*$/;
 
 # Adjust $0 to make sure it represents a fully-qualified path.
-$0 = join('/', $ENV{PWD} || fastcwd(), $0) if $0 !~ m%^[/\\]|^[a-z]:\\%i;
+$0 = join('/', $ENV{PWD} || Cwd::fastcwd(), $0) if $0 !~ m%^[/\\]|^[a-z]:\\%i;
 
 # Convert any backslashes in $0 to forward slashes for consistency.
 $0 =~ s%\\%/%g if $Win32;
@@ -93,7 +93,7 @@ for (0..$#ARGV) {
    # Hack - while here, we add an extra set of quotes to any comment
    # passed in with -c on Windows; -c is such a ubiquitous flag 
    # that we might as well deal with it in one (hacked) place.
-   $ARGV[$_+1] = qq("$ARGV[$_+1]") if $ARGV[$_] eq '-c';
+   $ARGV[$_+1] = qq("$ARGV[$_+1]") if $Win32 && $ARGV[$_] eq '-c';
    $Vgra{$ARGV[$_]} = $_;
 }
 
@@ -103,13 +103,13 @@ $CCHome = $ENV{ATRIAHOME} || ($Win32 ? 'C:/atria' : '/usr/atria');
 # The 'ct' program can be installed as a *complete* wrapper by
 # moving $ATRIAHOME/bin/cleartool to $ATRIAHOME/bin/wrapped/cleartool
 # and copying 'ct' to $ATRIAHOME/bin/cleartool.
-$ClearCmd = "$CCHome/bin/wrapped/cleartool"
+$CT = "$CCHome/bin/wrapped/cleartool"
     if -x "$CCHome/bin/wrapped/cleartool";
 
-# We use $ClearCmd instead of 'cleartool' to allow for the
+# We use $CT instead of 'cleartool' to allow for the
 # possibility of extending this wrapper to other programs.
-$ClearCmd ||= "$CCHome/bin/cleartool";
-$ClearCmd = 'cleartool' if ! -f $ClearCmd;
+$CT ||= "$CCHome/bin/cleartool";
+$CT = 'cleartool' if ! -f $CT;
 
 # This supports the ability to run, for example, "lsvtree" as a shortcut
 # for "ct lsvtree" if there's a link by that name.

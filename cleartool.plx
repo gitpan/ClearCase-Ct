@@ -59,9 +59,9 @@ That's all there is to it.
 
 =head1 COPYRIGHT
 
-Copyright (c) 1997,1998 David Boyce (dsb@world.std.com). All rights
-reserved.  This perl program is free software; you may redistribute it
-and/or modify it under the same terms as Perl itself.
+Copyright (c) 1997,1998,1999,2000 David Boyce (dsb@world.std.com). All
+rights reserved.  This Perl program is free software; you may
+redistribute it and/or modify it under the same terms as Perl itself.
 
 =cut
 
@@ -246,12 +246,12 @@ if (defined $_help_cmd) {
 }
 
 # Optional verbosity.
-warn "+ $ClearCmd @ARGV\n" if $opt_verbose && !$opt_quiet;
+warn "+ $CT @ARGV\n" if $opt_verbose && !$opt_quiet;
 
 # Now exec the real cmd and we're done, unless a post-op eval stack exists.
 # Also exec if running setuid since we won't be running any post-ops anyway.
 if ($opt_noexec && !$Setuid) {
-   System($ClearCmd, @ARGV);
+   System($CT, @ARGV);
    # The return code of the real cleartool cmd. No explicit exit in case
    # another perl process wants to 'require' ct instead of exec-ing it.
    $?>>=8;
@@ -262,6 +262,6 @@ if ($opt_noexec && !$Setuid) {
       $ENV{SHELL} = '/bin/sh' if exists $ENV{SHELL};
       delete @ENV{qw(IFS CDPATH ENV BASH_ENV)};
    }
-   Exec($ClearCmd, @ARGV);
+   Exec($CT, @ARGV);
    exit 1;
 }

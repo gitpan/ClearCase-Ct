@@ -1,6 +1,6 @@
 #!/usr/local/bin/perl	# for doc purposes only, not executable as is
 
-# Note: the version below may move independently of the one in Ct.pm.
+# Note: the version # below may move independently of the one in Ct.pm.
 
 =head1 NAME
 
@@ -27,14 +27,14 @@ Here's a quick overview of the extensions available via B<I<ct>> which
 may be of interest to users:
 
 Many I<cleartool> commands have been enhanced to simulate the standard
-flags B<-dir>, B<-rec>, and B<-all>, which cause the command to operate
-on (respectively) all eligible elements in the current dir, the current
-dir recursively, and the current vob. The enhanced commands include
-B<checkin/ci>, B<unco>, B<diff>, B<mkelem>, and B<lsprivate>.  Thus you
-can check in all your current checkouts with B<I<ct ci -all>> or see the
-view-private files in and under the current dir with B<I<ct lsprivate
--rec>>. You can convert a tree of view-private data into elements with
-B<I<ct mkelem -rec -ci>>.
+flags B<-dir>, B<-rec>, B<-all>, and B<-avobs> which cause the command
+to operate on (respectively) all eligible elements in the current dir,
+the current dir recursively, the current vob, and all vobs. The
+enhanced commands include B<checkin/ci>, B<unco>, B<diff>, B<mkelem>,
+and B<lsprivate>.  Thus you could check in all checkouts in the current
+view with B<I<ct ci -avobs>> or see the view-private files in and under
+the current dir with B<I<ct lsprivate -rec>>. You can convert a tree of
+view-private data into elements with B<I<ct mkelem -rec -ci>>.
 
 The B<I<ct checkin>> command is also enhanced to take a B<-diff> flag which
 prints your changes to the screen before prompting for a comment.
@@ -106,21 +106,21 @@ are available via the standard B<-h> flag.
 
 # We always want to traverse this block, even if help is not being
 # requested, in order to have a full record of the usage msgs so a
-# pseudo-command can print it on error. The keys below must be the
-# real name of the cmd, not an abbreviation!
+# pseudo-command can print them on error. The keys below must be the
+# real name of the cmd, not an abbreviation.
 {
 
    $Help{catcs} .= "
-           * [-expand|-source|-branch|-vobs|-project|-promote]";
+           * [-cmnt|-expand|-rdl|-sources|-start]";
 
    $Help{checkin} .= "
-                  * [-dir|-rec|-all] [-iff] [-diff [diff-opts]] [-revert]";
+                  * [-dir|-rec|-all|-avobs] [-iff] [-diff [diff-opts]] [-revert]";
 
    $Help{checkout} .= "
                    * [-dir|-rec|-all]";
 
    $Help{diff} .= "
-          * [-c] [-dir|-rec|-all]";
+          * [-c] [-dir|-rec|-all|-avobs]";
 
    $Help{edit} .= "Usage: *edit <co-flags> [-ci] <ci-flags> pname ...";
 
@@ -137,10 +137,13 @@ are available via the standard B<-h> flag.
    $Help{mkelem} .= "
             * [-dir|-rec]";
 
-   $Help{mkview} =~ s/  (view-storage-pname)/* [-me] [-back backing-view-list | -profile view-profile-name]
+   $Help{mkview} =~ s/  (view-storage-pname)/* [-me] [-local] [-clone <view>]
             * [$1]/;
 
-   $Help{setview} .= " * [-me]";
+   $Help{setcs} .= "
+           * [-sync]";
+
+   $Help{setview} .= " * [-me] [-drive drive:] [-persistent]";
 
    $Help{uncheckout} .= "
                        * [-nc]";
@@ -149,27 +152,20 @@ are available via the standard B<-h> flag.
 
    $Help{eclipse} .= "Usage: *eclipse element ...";
 
-   $Help{citree} .= "Usage: *citree [-a] [-m] [-n] [-r] [-t] [-v]
-               [-c <comment>] [-l <LABEL>] [-f <list-file>]
-               <source> <destination>>";
-
    $Help{edattr} .= "Usage: *edattr object-selector ...";
 
    $Help{edcmnt} .= "Usage: *edcmnt [-new] object-selector ...";
 
    $Help{grep} .= "Usage: *grep [grep-flags] pattern element";
+
+   $Help{workon} = "* Usage: workon [-me] [-login] [-exec command-invocation] view-tag\n";
 }
 
 ###################### End of Help Section #############################
 
 ####################### Command Section ################################
 
-warn "No SiteProfile found!\n" if !grep /SiteProfile/, keys %INC;
-
 use subs qw(Die Warn);	# keeps perl -c happy
-
-# Override the user's preferences while interacting with clearcase.
-umask 002;
 
 # Just in case we need to do a 'mkdir -p' type of thing.
 use autouse 'File::Path' => qw(mkpath);
@@ -177,17 +173,29 @@ use autouse 'File::Path' => qw(mkpath);
 # Just in case we need to copy a file ...
 use autouse 'File::Copy' => qw(copy move);
 
-# Assume that all vobs are owned by a single pseudo-user of this name:
-my $VobAdm = 'vobadm';
+# A list of users who are exempt from certain restrictions.
+my @Admins = qw(vobadm ccall);
+
+# Override the user's preferences while interacting with clearcase.
+umask 002 if !grep(/^$ENV{LOGNAME}$/, @Admins);
+
+# Similar to above but would withstand competition from settings in
+# .kshrc et al. It's critical to build DO's with generous umasks
+# in case they get winked in. We allow it to be overridden lower
+# than 002 but not higher.
+$ENV{CLEARCASE_BLD_UMASK} = 2
+	if !defined($ENV{CLEARCASE_BLD_UMASK}) || $ENV{CLEARCASE_BLD_UMASK} > 2;
 
 # Examines current ARGV, returns the specified or current view tag.
 sub ViewTag
 {
+   my $vtag;
    local(@ARGV) = @ARGV;
-   my($opt_view_tag);
-   GetOptions("tag=s" => \$opt_view_tag);
-   ($opt_view_tag) = reverse split('/', $ENV{CLEARCASE_ROOT}) if !$opt_view_tag;
-   return $opt_view_tag;
+   GetOptions("tag=s" => \$vtag);
+   $vtag ||=  (split(m%[/\\]%, $ENV{CLEARCASE_ROOT}))[-1];
+   $vtag ||= qx($CT pwv -s);
+   chomp $vtag;
+   return $vtag;
 }
 
 # Takes the name of a view tag, returns the storage dir for that view.
@@ -234,9 +242,10 @@ COMMAND: {
    # Performance hack: enter this block only if a simple-minded RE
    # tells us we have a chance of finding a -dir/-rec/-all flag.
    if (/^ci$|^checkin$|^co$|^checkout$|^edit$|^unc
-	       |^diff$|^review$|^mkelem$|^lsp|^rmpriv/x
-	    && grep /-[dra]/, @ARGV) {
-      GetOptions(\%AutoOpt, "directory", "recurse", "all");
+	       |^diff$|^review$|^mkelem$|^lsp$|^lspri|^rmpriv/x
+	    && grep /^-[dra]/, @ARGV) {
+      StripOptions(\@ARGV, q(cview)) if grep /^-cvi/, @ARGV;
+      GetOptions(\%AutoOpt, qw(directory recurse all avobs));
       if (keys %AutoOpt > 1) {
 	 my @temp = join(' -', keys %AutoOpt);
 	 die "conflicting flags:  -@temp\n";
@@ -271,7 +280,9 @@ COMMAND: {
 	    # The FAQ says this is slow but it's a very small array ...
 	    unshift(@t_argv, '-cvi') unless grep /^-cvi/, @t_argv;
 	    unshift(@t_argv, '-s') unless grep /^-s/, @t_argv;
-	    if ($AutoOpt{all}) {
+	    if ($AutoOpt{avobs}) {
+	       @new_elems = Qx($0, qw(lsco -avobs), @t_argv);
+	    } elsif ($AutoOpt{all}) {
 	       @new_elems = Qx($0, qw(lsco -all), @t_argv);
 	    } elsif ($AutoOpt{recurse}) {
 	       @new_elems = Qx($0, qw(lsco -r), @t_argv);
@@ -297,22 +308,22 @@ COMMAND: {
 	    # list of elements _not_ checked out.
 	    if ($AutoOpt{all}) {
 	       %checkedout = map {$_, $_}
-		  Qx($ClearCmd, qw(lsco -cview -s -all));
+		  Qx($CT, qw(lsco -cview -s -all));
 	       @checkedin = grep !$checkedout{$_},
-		  Qx($ClearCmd, qw(find -all -type f -cvi -nxn -print));
+		  Qx($CT, qw(find -all -type f -cvi -nxn -print));
 	    } elsif ($AutoOpt{recurse}) {
 	       %checkedout = map {s%^.[/\\]%%; $_, $_}
-		  Qx($ClearCmd, qw(lsco -cview -s -r));
+		  Qx($CT, qw(lsco -cview -s -r));
 	       @checkedin = grep !$checkedout{$_},
 		  map {s%^.[/\\]%%; $_}
-		     Qx($ClearCmd, qw(find . -type f -cvi -nxn -print));
+		     Qx($CT, qw(find . -type f -cvi -nxn -print));
 	    } elsif ($AutoOpt{directory}) {
 	       %checkedout = map {$_, $_}
-		  Qx($ClearCmd, qw(lsco -cview -s));
+		  Qx($CT, qw(lsco -cview -s));
 	       @checkedin = grep !$checkedout{$_},
 		  grep !m%[/\\]%,
 		     map {substr($_, 2)}
-			Qx($ClearCmd, qw(find . -type f -cvi -nxn -print));
+			Qx($CT, qw(find . -type f -cvi -nxn -print));
 	    }
 	    chomp @checkedin;
 	    if ($Win32) { for (@checkedin) { $_ = qq("$_") if /\s/ } }
@@ -347,8 +358,29 @@ COMMAND: {
 
 =item * CATCS
 
-New B<-expand> flag. This recursively follows all include statements in
-order to print a complete config spec.
+=over 4
+
+=item 1. New B<-expand> flag
+
+Follows all include statements recursively in order to print a complete
+config spec. The B<-cmnt> flag will strip comments from this listing.
+
+=item 2. New B<-rdl> flag
+
+Shows 'rdl' options embedded in the config spec.
+
+=item 3. New B<-sources> flag
+
+Prints the files involved in the config spec (the config_spec file
+itself plus any include files).
+
+=item 4. New B<-start> flag
+
+Prints the I<initial working directory> of a view by examining its
+config spec. If the conventional string C<##:Start: I<dir>> is present
+then the value of I<dir> is printed. Otherwise no output is produced.
+
+=back
 
 =cut
 
@@ -358,49 +390,10 @@ order to print a complete config spec.
 #Lots of enhancements here, mostly in the area of config-spec parsing
 #for automation:
 #
-#=over 4
-#
-#=item 1. New B<-expand> flag
-#
-#This follows all include statements recursively in order to print a
-#complete config spec.
-#
-#=back
-#
-#=cut
-#
-#
-#=item 2. New B<-source> flag
-#
-#Prints the I<initial working directory> of a view by examining its
-#config spec. If the conventional string C<##:Source: I<dir>> is present
-#then the value of I<dir> is printed. Otherwise the first path
-#found in the second field of the config spec, typically a vob tag,
-#is used. If no explicit paths are present, no output is produced.
-#
-#=item 3. New B<-branch> flag
-#
-#Prints the name of the first branch selected in the config spec
-#via a line like this:
-#
-#	C<element * .../I<branch>/LATEST>
-#
 #=item 4. New B<-vobs> flag
 #
 #Prints a list of all vob tags referenced explicitly within the
 #config spec.
-#
-#=item 5. New B<-project> flag
-#
-#Prints the I<name> of the first vob tag encountered in the config spec,
-#assuming the vob-naming convention C</vobs/I<name>/src> or
-#C</vobs/I<name>/do> (meaning C<source vobs> and C<derived-object> vobs
-#respectively).
-#
-#=item 6. New B<-promote> flag
-#
-#Prints the name of the I<backing branch> of the current config spec.
-#This is the branch that local work will be merged to.
 ##########################################################################
 
    if (/^catcs$/) {
@@ -413,53 +406,73 @@ order to print a complete config spec.
       ## Originally based on a sample function called process()
       ## given in perlfunc(1).
       sub burrow {
-	 my($input, $action) = @_;
+	 local $input = shift;
+	 my($filename, $action) = @_;
+	 print $filename, "\n" if !$action;
+	 $input++;
+	 if (!open($input, $filename)) {
+	    warn "$filename: $!";
+	    return;
+	 }
 	 while (<$input>) {
-	    if (my($next) = /^include (.*)/) {
-	       # Read perlop(1), search for /extra builtin magic/
-	       # to understand this.
-	       local($i) = $input; $i++;
-	       print "# $_" unless $action;
-	       if (open($i, $next)) {
-		  burrow($i, $action);
-		  close $i;
-	       }
-	       next;
+	    if (/^include\s+(.*)/) {
+		burrow($input, $1, $action);
+		next;
 	    }
-	    eval $action;
+	    eval $action if $action;
 	 }
       }
 
-      my %Opt;
-      GetOptions(\%Opt, "expand", "branch", "project", "projlist",
-			"promote=s", "source", "vobs");
-      my $op;
-      if ($Opt{expand}) {
+      my(%opt, $op);
+      GetOptions(\%opt, qw(cmnt expand rdl start|iwd sources vobs));
+      if ($opt{sources}) {
+	 $op = '';
+      } elsif ($opt{expand}) {
 	 $op = 'print';;
-      } elsif ($Opt{source}) {
-	 $op = 's%##:Source:\s+(\S+)|^\s*element\s+(\S*)/\.{3}\s%print "$+\n";exit 0%e';
-      } elsif ($Opt{vobs}) {
+      } elsif ($opt{rdl}) {
+	 $op = 's%##:RDL:\s*(.+)%print "$+\n";exit 0%ie';
+      } elsif ($opt{start}) {
+	 $op = 's%##:Start:\s+(\S+)|^\s*element\s+(\S*)/\.{3}\s%print "$+\n";exit 0%ie';
+      } elsif ($opt{vobs}) {
 	 $op = 's%^element\s+(\S+)/\.{3}\s%print "$1\n"%e';
-      } elsif ($Opt{project}) {
-	 $op = 's%^element\s+/vobs/([^/]*)/src/\.{3}\s%print "$1\n";exit 0%e';
-      } elsif ($Opt{projlist}) {
-	 $op = 's%^element\s+/vobs/([^/]*)/src/\.{3}\s%print "$1\n"%e';
-      } elsif ($Opt{branch}) {
-	 $op = 's%^element\s+\S+\s+.*/([^/]*)/LATEST%print "$1\n";exit 0%e';
-      } elsif ($Opt{promote}) {
-	 $op = 's%^element\s+$Opt{promote}/\.+\s+.*/([^/]*)/LATEST%print "$1\n";exit 0%e';
       }
-      if ($op) {
-	 my $handle = 'CATCS_00';
-	 if (open($handle, "-|")) {
-	    burrow($handle, $op);
-	    close($handle);
-	    exit $?>>8;
-	 } else {
-	    Exec($ClearCmd, @ARGV);
+      if (defined $op) {
+	 $op .= ' unless /^\s*#/' if $op && $opt{cmnt};
+	 my $tag = ViewTag();
+	 die "Error: no view tag specified or implicit" if !$tag;;
+	 my($cs) = reverse split '\s+', qx($CT lsview $tag);
+	 exit burrow('CATCS_00', "$cs/config_spec", $op);
+      }
+      # A vanilla catcs cmd will fall out here and run the regular way
+      last COMMAND;
+   }
+
+=item * SETCS
+
+Adds a B<-sync> flag. This is similar to B<-current> except that it
+analyzes the view dependencies and only flushes the view cache if the
+compiled_spec is out of date with respect to the config_spec source
+file or a file it includes.
+
+=cut
+
+   if (/^setcs$/) {
+      my %opt;
+      GetOptions(\%opt, qw(sync));
+      if ($opt{sync}) {
+	 my $tag = ViewTag();
+	 chomp(my @srcs = qx($0 catcs --reread --sources -tag $tag));
+	 exit 2 if $?;
+	 (my $obj = $srcs[0]) =~ s/config_spec/.compiled_spec/;
+	 die "$obj: no such file" if ! -f $obj;
+	 die "Error: no permission to update $tag's config spec\n" if ! -w $obj;
+	 my $otime = (stat $obj)[9];
+	 for (@srcs) {
+	    Exec($CT, qw(setcs -current -tag), $tag) if (stat $_)[9] > $otime;
 	 }
+	 exit 1;
       }
-      last COMMAND; #NOTREACHED#
+      last COMMAND;
    }
 
 =item * CI/CHECKIN
@@ -508,7 +521,9 @@ producing a lot of errors for the others.
       # Default to -nc if checking in directories.
       if (!grep(/^-c$|^-cq|^-nc$|^-cfi/, @ARGV)) {
 	 my $alldirs = 1;
-	 for (RemainingOptions(\@ARGV, qw(
+	 my @args = @ARGV;
+	 shift @args;
+	 for (RemainingOptions(\@args, qw(
 		  cqe|nc|nwarn|cr|ptime|identical|rm c|cfile|from=s
 		  serial_format|diff_format|window context
 		  graphical|tiny|hstack|vstack|predecessor options=s))) {
@@ -532,9 +547,9 @@ producing a lot of errors for the others.
 			graphical|tiny|hstack|vstack|predecessor options=s));
 	 shift @elems;
 	 my $flag_cnt = @ARGV - @elems;
-	 my @selected = `$ClearCmd lsco -s @elems 2>$DevNull`;
+	 my @selected = `$CT lsco -s @elems 2>$DevNull`;
 	 if (!@selected) {
-	    `$ClearCmd lsco -s @elems`; # just to repeat the error msg.
+	    `$CT lsco -s @elems`; # just to repeat the error msg.
 	    warn "no elements selected\n" unless $?;
 	    exit $?>>8;
 	 }
@@ -570,14 +585,15 @@ producing a lot of errors for the others.
 	       # If -revert and no changes, uncheckout instead of checkin
 	       my $chng;
 	       if ($opt_ci_diff) {
-		  $chng = System($Wrapper, qw(diff -pred), @diff_args, $elem);
+		  $chng = System($0, qw(diff -pred), @diff_args, $elem);
 	       } else {
-		  $chng = System($Wrapper, qw(diff -pred), $elem, '>/dev/null');
+		  $chng = System($0, qw(diff -pred), $elem, '>/dev/null');
 	       }
 	       if ($opt_ci_revert && !$chng) {
-		  System($ClearCmd, qw(unco -rm), $elem);
+		  System($CT, qw(unco -rm), $elem);
 	       } else {
-		  System($ClearCmd, @ARGV, $elem);
+		  splice(@ARGV, 1, 0, '-cqe') if !grep /^-c|^-nc$/, @ARGV;
+		  System($CT, @ARGV, $elem);
 	       }
 	    }
 	    # All done, no need to return to wrapper program.
@@ -640,7 +656,7 @@ editor on all currently checked-out files.
 					    "from=s", "diff") if $opt_edit_ci;
 
 	 # Do the checkout.
-	 if (System($ClearCmd, 'co', @ARGV[1..$#ARGV])) {
+	 if (System($CT, qw(co -nc), @ARGV[1..$#ARGV])) {
 	    exit $?>>8 if Prompt(qw(yes_no -mask y,n -pro), 'Continue?');
 	 }
 
@@ -693,6 +709,9 @@ of all changes currently checked-out in your view with C<ct review -all>.
 	 GetOptions(\%Opt, 'context|c', 't=s');
       }
 
+      # Similar to checkin/checkout hack.
+      for (@ARGV[1..$#ARGV]) { $_ = readlink if -l && defined readlink }
+
       if (/^review$/) {
 	 $Opt{context} = 1;
 	 $Opt{t} ||= 'Code Review';
@@ -708,7 +727,7 @@ of all changes currently checked-out in your view with C<ct review -all>.
       if ($Opt{context}) {
 	 my $finalstat = 0;
 	 for my $elem (@elems) {
-	    my $pred = qx($ClearCmd desc -short -pred $elem);
+	    my $pred = qx($CT desc -short -pred $elem);
 	    chomp $pred;
 	    if (/^review$/) {
 	       open(STDOUT, "| pprint -t '$elem'") || Warn "$!";
@@ -733,40 +752,10 @@ of all changes currently checked-out in your view with C<ct review -all>.
       }
 
       # Change default: diff -pred -serial
-      splice(@ARGV, 1, 0, '-serial') if !grep(/^-ser$|^-dif|-col/, @ARGV);
+      splice(@ARGV, 1, 0, '-serial') if !grep(/^-(?:ser|dif|col|g)/, @ARGV);
       splice(@ARGV, 1, 0, '-pred') if !grep(/^-pre/, @ARGV) && @elems < 2;
       last COMMAND;
    }
-
-
-=item * CITREE
-
-New command. Takes a tree of files from normal Unix file space and
-puts them under source control in the specified VOB directory. If
-there are already elements by the same name, it checks them out and
-back in. Otherwise it runs mkelem operations as needed.
-
-B<NOTE: by default, I<citree> makes the target directory an exact
-replica of the source by removing any files from the target which don't
-exist in the source>. This is not the disaster it might seem since
-the files are still present in ClearCase, but in any case the B<I<-r>>
-flag will turn this behavior off.
-
-This is just a wrapper to the standalone B<I<citree>> program written
-by Paul Smith (psmith@BayNetworks.com). Run B<I<citree>> with no
-arguments for full details.
-
-=cut
-
-   # As of this writing, the citree program's home is
-   # "ftp://ftp.wellfleet.com/netman/users/psmith/atria/tools/".
-   # However, a not-guaranteed-to-be-identical version is supplied
-   # with this package as well.
-   if (/^citree$/) {
-      push(@ARGV, '-h') if @ARGV == 1;
-      Exec(@ARGV);
-   }
-
 
 =item * ECLIPSE
 
@@ -782,7 +771,7 @@ elements can lead to dangerous levels of confusion - use with care!>
       Die "$Help{$_}\n" unless @ARGV > 1;
       my $retstat = 0;
       shift @ARGV;
-      my @orig = Qx($ClearCmd, catcs);
+      my @orig = Qx($CT, catcs);
       for my $elem (@ARGV) {
 	 if (! -f $elem || -w _) {
 	    Warn "don't know how to eclipse '$elem'\n";
@@ -799,7 +788,7 @@ elements can lead to dangerous levels of confusion - use with care!>
 	    $retstat++;
 	    next;
 	 }
-	 if (System($ClearCmd, qw(setcs), $cstmp)) {
+	 if (System($CT, qw(setcs), $cstmp)) {
 	    $retstat++;
 	    next;
 	 }
@@ -811,9 +800,9 @@ elements can lead to dangerous levels of confusion - use with care!>
 	 open(CSTMP, ">$cstmp") || die "$cstmp: $!";
 	 print CSTMP @orig;
 	 close(CSTMP) || die "$cstmp: $!";
-	 if (System($ClearCmd, qw(setcs), $cstmp)) {
+	 if (System($CT, qw(setcs), $cstmp)) {
 	    Warn "your config spec may be broken!!";
-	    exit 1;
+	    exit 2;
 	 }
 	 unlink $cstmp;
       }
@@ -839,7 +828,7 @@ doesn't support modification of attributes.
       for my $elem (@ARGV) {
 	 my %indata = ();
 	 #$elem .= '@@' unless $elem =~ /\@\@/;
-	 my @lines = qx($ClearCmd desc -aattr -all $elem);
+	 my @lines = qx($CT desc -aattr -all $elem);
 	 if ($?) {
 	    $retstat++;
 	    next;
@@ -871,25 +860,25 @@ doesn't support modification of attributes.
 	       }
 	       # Figure out what type the new attype needs to be.
 	       # Sorry, didn't bother with -vtype time.
-	       if (System("$ClearCmd lstype attype:$attr >$DevNull 2>&1")) {
+	       if (System("$CT lstype attype:$attr >$DevNull 2>&1")) {
 		  if ($newval =~ /^".*"$/) {
-		     System($ClearCmd, qw(mkattype -nc -vty string), $attr);
+		     System($CT, qw(mkattype -nc -vty string), $attr);
 		  } elsif ($newval =~ /^[+-]?\d+$/) {
-		     System($ClearCmd, qw(mkattype -nc -vty integer), $attr);
+		     System($CT, qw(mkattype -nc -vty integer), $attr);
 		  } elsif ($newval =~ /^-?\d+\.?\d*$/) {
-		     System($ClearCmd, qw(mkattype -nc -vty real), $attr);
+		     System($CT, qw(mkattype -nc -vty real), $attr);
 		  } else {
-		     System($ClearCmd, qw(mkattype -nc -vty opaque), $attr);
+		     System($CT, qw(mkattype -nc -vty opaque), $attr);
 		  }
 	       }
 	       # Hack to make string-typed attrs work on ^%@# Windows.
 	       $newval = "\\\"$newval\\\"" if $Win32 && $newval =~ /^".*"$/;
 	       if (defined($oldval)) {
 		  my $cmnt = $Win32 ? qq("(Was: $oldval)") : "(Was: $oldval)";
-		  $retstat++ if System($ClearCmd, qw(mkattr -rep -c),
+		  $retstat++ if System($CT, qw(mkattr -rep -c),
 				 $cmnt, $attr, $newval, $elem);
 	       } else {
-		  $retstat++ if System($ClearCmd, qw(mkattr -rep),
+		  $retstat++ if System($CT, qw(mkattr -rep),
 				 $attr, $newval, $elem);
 	       }
 	    } else {
@@ -904,12 +893,12 @@ doesn't support modification of attributes.
 	 # First we do a simple rmattr; then see if it was the last of
 	 # its type and if so remove the type too.
 	 for (sort keys %indata) {
-	    if (System($ClearCmd, 'rmattr', $_, $elem)) {
+	    if (System($CT, 'rmattr', $_, $elem)) {
 	       $retstat++;
 	    } else {
 	       # Don't remove the type if its vob serves as an admin vob!
-	       my(@deps) = grep /^<-/, `$ClearCmd desc -s -ahl AdminVOB vob:.`;
-	       System($ClearCmd, 'rmtype', '-rmall', "attype:$_")
+	       my(@deps) = grep /^<-/, `$CT desc -s -ahl AdminVOB vob:.`;
+	       System($CT, 'rmtype', '-rmall', "attype:$_")
 		  if $? == 0 && ! @deps;
 	    }
 	 }
@@ -937,7 +926,7 @@ flag causes it to ignore the previous comment.
       for my $elem (@ARGV) {
 	 my @input = ();
 	 if (!$opt_edcmnt_new) {
-	    @input = Qx($ClearCmd, qw(desc -fmt %c), $elem);
+	    @input = Qx($CT, qw(desc -fmt %c), $elem);
 	    next if $?;
 	 }
 	 my $edtmp = "$TmpDir/edcmnt.$$";
@@ -953,7 +942,7 @@ flag causes it to ignore the previous comment.
 	 while (<EDTMP>) { $csum_post += unpack("%16C*", $_); }
 	 close(EDTMP) || Die "$edtmp: $!";
 	 next if $csum_post == $csum_pre;
-	 if (System($ClearCmd, qw(chevent -replace -cfi), $edtmp, $elem)) {
+	 if (System($CT, qw(chevent -replace -cfi), $edtmp, $elem)) {
 	    $retstat++;
 	    next;
 	 }
@@ -1003,8 +992,8 @@ results of B<find> to a B<describe -fmt>.
 	 if (my @conflict = grep /^-print|^-exec|^-ok/, @ARGV) {
 	    Warn "-fmt flag conflicts with @conflict\n";
 	 }
-	 Exec("$ClearCmd @ARGV -print |
-	       /usr/bin/xargs $ClearCmd desc -fmt '$opt_fmt'");
+	 Exec("$CT @ARGV -print |
+	       /usr/bin/xargs $CT desc -fmt '$opt_fmt'");
       }
       last COMMAND;
    }
@@ -1019,8 +1008,9 @@ a particular bug.  Suggested by Seth Alford <setha@plaza.ds.adp.com>.
 
    if (/^grep$/) {
       my $file = pop(@ARGV);
-      chomp(my @versions = map { s/@@.*CHECKEDOUT$//; $_ }
-				    Qx($ClearCmd, qw(lsvt -a -s), $file));
+      chomp(my @versions = sort {($b =~ m%/(\d+)%)[0] <=> ($a =~ m%/(\d+)%)[0]}
+				    map { s/@@.*CHECKEDOUT$//; $_ }
+				    Qx($CT, qw(lsvt -a -s), $file));
       Exec(@ARGV, @versions);
       exit 0;
    }
@@ -1050,37 +1040,51 @@ Modified default to always use B<-a> flag.
 =item * LSPRIVATE
 
 Extended to recognize B<-dir/-rec/-all> (underlying lsprivate always
-behaves in a B<-all> fashion). Also allows a directory to be
+behaves in a B<-avobs> fashion). Also allows a directory to be
 specified, such that 'ct lsprivate .' restricts output to cwd.
 
 =cut
 
-   if (/^lsp/) {
+   # make sure we don't catch 'lsproject' here ...
+   if (/^lsp$|^lspri/) {
       # Extension: allow [dir] argument
       if (RemainingOptions(\@ARGV, "co|do|other|short|long",
 					     "tag|invob=s") == 2) {
-	 chdir(pop @ARGV) || die "$ARGV[0]: $!\n";
-	 $AutoOpt{recurse} = !$AutoOpt{directory};
+	 $AutoOpt{place} = pop(@ARGV);
+	 # Default to -rec but accept -dir.
+	 $AutoOpt{recurse} = !$AutoOpt{directory} if !$AutoOpt{all};
       }
 
-      # Extension: allow [-dir|-rec|-all]
+      # Extension: allow [-dir|-rec]
       if ($AutoOpt{recurse} || $AutoOpt{directory}) {
-	 chomp(my $dir = fastcwd());
-	 $dir =~ s/^[A-Z]:// if $Win32;
-	 chomp(my @privs = sort `$ClearCmd @ARGV`);
-	 for (@privs) { s%\\%/%g }
-	 my @chosen;
+	 my($dir, $tag);
+	 chomp($dir = Cwd::abs_path($AutoOpt{place} || '.'));
+	 if ($Win32) {
+	     $dir =~ s/^[A-Z]://i;
+	     $dir =~ s%\\%/%g;
+	 }
+	 GetOptions('tag=s' => \$tag);
+	 if ($dir =~ s%/+view/([^/]+)%%) {
+	    $tag ||= $1;
+	 } elsif (!$tag) {
+	    chomp($tag = `$CT pwv -s`);
+	 }
+	 chomp(my @privs = sort `$CT @ARGV -tag $tag`);
+	 for (@privs) { s/^[A-Z]://i; s%\\%/%g; s%(/+view)?/$tag%% }
 	 if ($AutoOpt{recurse}) {
-	    @chosen = map {$_ || '.'}
+	    print map {"$_\n"}
+		  map {$_ || '.'}
 		  map {m%^$dir/(.*)%} 
 		  map {$_ eq $dir ? "$_/" : $_} @privs;
 	 } elsif ($AutoOpt{directory}) {
-	    @chosen = map {$_ || '.'}
+	    print map {"$_\n"}
+		  map {$_ || '.'}
 		  map {m%^$dir/([^/]*)$%s}
 		  map {$_ eq $dir ? "$_/" : $_} @privs;
 	 }
-	 for (@chosen) { print $_, "\n"; }
 	 exit;
+      } elsif ($AutoOpt{all}) {
+	 splice(@ARGV, 1, 0, '-invob', $AutoOpt{place} || '.');
       }
 
       last COMMAND;
@@ -1118,7 +1122,7 @@ Same as mkattype above.
 
    if (/^(mkattype|mkbrtype|mklbtype)$/) {
       if (! grep(/^-ord|^-glo|vob:/i, @ARGV)) {
-	 if (my(@adms) = grep /^->/, `$ClearCmd desc -s -ahl AdminVOB vob:.`) {
+	 if (my(@adms) = grep /^->/, `$CT desc -s -ahl AdminVOB vob:.`) {
 	    if (my $adm = (split(' ', $adms[0]))[1]) {
 	       chomp $adm;
 	       warn "Making global type in $adm ...\n";
@@ -1156,7 +1160,6 @@ any directories automatically checked out are checked back in too.
 
       # Derive the list of view-private files to work on.
       # Some files we don't ever want to put under version control...
-      # this RE should really be passed as a parameter to PrivateList().
       my @candidates = grep(!/\Q.cmake.state\E|
 			    \Q.mvfs_\E|
 			    \Q.abe.state\E/x,
@@ -1172,7 +1175,7 @@ any directories automatically checked out are checked back in too.
       for (@candidates) {
 	 my $d = dirname($_);
 	 next if ! $d || $dirs{$d};
-	 my $lsd = qx($ClearCmd ls -d "$d");
+	 my $lsd = qx($CT ls -d "$d");
 	 # If no version selector given, it's a view-private dir and
 	 # will be handled below.
 	 next unless $lsd =~ /\sRule:\s/;
@@ -1185,10 +1188,10 @@ any directories automatically checked out are checked back in too.
       # Now mkelem the dirs. God I hate Windows.
       if ($Win32) {
 	 for (keys %dirs) {
-	    exit $?>>8 if System($ClearCmd, qw(co -nc), qq("$_"));
+	    exit $?>>8 if System($CT, qw(co -nc), qq("$_"));
 	 }
       } else {
-	 exit $?>>8 if keys %dirs && System($ClearCmd, qw(co -nc), keys %dirs);
+	 exit $?>>8 if keys %dirs && System($CT, qw(co -nc), keys %dirs);
       }
 
       # Process candidate directories here, then do files below.
@@ -1205,14 +1208,14 @@ any directories automatically checked out are checked back in too.
 	 my $tmpdir = "$cand.$$.keep.d";
 	 Die "$cand: $!" unless rename($cand, $tmpdir);
 	 if ($Win32) {
-	    if(System($ClearCmd, qw(mkdir -nc), qq("$cand"))) {
+	    if(System($CT, qw(mkdir -nc), qq("$cand"))) {
 	       rename($tmpdir, $cand);
-	       exit 1;
+	       exit 2;
 	    }
 	 } else {
-	    if(System($ClearCmd, qw(mkdir -nc), $cand)) {
+	    if(System($CT, qw(mkdir -nc), $cand)) {
 	       rename($tmpdir, $cand);
-	       exit 1;
+	       exit 2;
 	    }
 	 }
 	 opendir(DIR, $tmpdir) || Die "$tmpdir: $!";
@@ -1233,9 +1236,9 @@ any directories automatically checked out are checked back in too.
 	 local(@ARGV) = @ARGV[1..$#ARGV];  # operate on temp argv
 	 my @flags = StripOptions(\@ARGV,
 	       "eltype=s", "nco|ci|ptime|master|nwarn", "cqe|nc", "c|cfile=s");
-	 for (@ARGV) { System($ClearCmd, q(mkelem), @flags, qq("$_")); }
+	 for (@ARGV) { System($CT, q(mkelem), @flags, qq("$_")); }
       } else {
-	 System($ClearCmd, @ARGV) if @files;
+	 System($CT, @ARGV) if @files;
       }
 
       # Now, if the -ci flag was supplied, check the dirs back in.
@@ -1246,17 +1249,16 @@ any directories automatically checked out are checked back in too.
 	 if ($Win32) {
 	    my $ret;
 	    for(keys %dirs) {
-	       $ret ||= System($ClearCmd, qw(ci -nc), qq("$_"));
+	       $ret ||= System($CT, qw(ci -nc), qq("$_"));
 	    }
 	    exit $ret>>8 if $ret;
 	 } else {
-	    exit $?>>8 if System($ClearCmd, qw(ci -nc), keys %dirs);
+	    exit $?>>8 if System($CT, qw(ci -nc), keys %dirs);
 	 }
       }
 
       exit 0;
    }
-
 
 =item * MKVIEW
 
@@ -1277,23 +1279,20 @@ name. Thus a user can simply type B<"mkview -me -tag foo"> and the view
 will be created as E<lt>usernameE<gt>_foo with the view storage placed
 in a default location determined by the sysadmin.
 
-=item 3. New I<-profile> flag
+=item 3. New I<-local> flag
 
-The user can associate the view with a I<ClearCase View Profile>.
-Although, as of CC 3.2 these can only be manipulated on Windows NT,
-this extension allows them to be I<used> on Unix platforms. In order
-for this to work, the view-profile storage area must be accessible to
-the Unix platforms (via NFS or Samba, for instance). The profile
-text is modified to replace backslashes with forward slashes, correct
-line-termination characters, and is then instantiated in the config
-spec. The B<I<ct synccs>> command can be used to resync.
+By default, views are placed in a standard path on a standard
+well-known view server.  Of course, the sophisticated user may specify
+any view-storage location explicitly, taking responsibility for getting
+the -host/-hpath/-gpath triple right. But a I<-local> flag is also
+supported which will attempt to place the view in the same standard
+place but on the local machine.
 
-#=item 4. New I<-back> flag
-#This is an advanced topic ...
+=item 4. New I<-clone> flag
 
-## Note: to use the default view-storage feature you must define
-## the variable $ViewStgRoot to the appropriate place, typically
-## /net/somewhere/viewstore/... or similar.
+This allows you to specify another view from which to copy the config
+spec and other properties. Note that it does I<not> copy view-private
+files from the old view, just the properties.
 
 =back
 
@@ -1304,85 +1303,98 @@ spec. The B<I<ct synccs>> command can be used to resync.
       # local naming convention, or if the storage location is not
       # one of the approved areas.
       # Extension: if no view-storage area specified, use a standard one.
-      my($opt_tag, $opt_tco, $opt_profile, @opt_backing);
-      my($stg, $new_spec, @backers);
-      GetOptions("backing=s@" => \@opt_backing, "profile=s" => \$opt_profile);
-      Warn "$ARGV[0]: -backing flag conflicts with -profile\n"
-	    if @opt_backing && $opt_profile;
-      if (@opt_backing) {
-	 @backers = split(/[,:\s]/, "@opt_backing");
-	 map($_ = "Backing: $_\n", @backers);
-	 $new_spec = <<EOCS;
-element * CHECKEDOUT
-#
-#       Any modifications to the Profile config spec should
-#       be made following this comment.      
-# CC_PROJECT]
+      my %opt;
+      GetOptions(\%opt, qw(local clone=s));
 
-@backers
-# [CC_PROJECT - Profile Config Spec
-#       Do not directly modify the text below, it has been
-#       automatically generated by the ClearCase::Ct module.
-element * /main/0
-EOCS
-      } elsif ($opt_profile) {
-	 # Need to grab the profile and (a) change all \ to /, and
-	 # (b) remove ^M from the ends of the lines.
-	 Die "no profile storage area defined\n" if ! defined $ProfileStgRoot;
-	 my $ru = "$ProfileStgRoot/$opt_profile/Rules";
-	 Die "$ru: $!\n" unless open(FH_RULE, $ru);
-	 for my $line (<FH_RULE>) {
-	    substr($line, -2) = "\n";	# remove the MS carriage return
-	    $line =~ s%\\%/%g;		# change \ to / globally
-	    $new_spec .= $line;
+
+      if (!grep(/^-sna/, @ARGV)) {
+	 my $gstg;
+
+	 # Site-specific preference for where we like to locate our views.
+	 # If there's a local /*/vwstore area which is shared and automountable,
+	 # put the view there. Otherwise require an explicit choice.
+	 # This array holds (global local) storage path pairs.
+	 my @vwsmap = qw(/data/ccase/vwstore/personal /data/ccase/vwstore/personal);
+	 my $vhost = 'sparc5';
+	 if ($opt{local}) {
+	    warn "Warning: flag not implemented, no automounter in use";
+=pod
+	    require Sys::Hostname;
+	    my $tmphost = Sys::Hostname::hostname();
+	    @tmpmap = map {(split /[\s:]/)[0,2]}
+		      grep {m%/$tmphost\s+$tmphost:.*/vwstore%}
+		      qx(ypcat -k auto_dev);
+	    if (!@tmpmap) {
+	       warn "Warning: no /vws area on $tmphost, using $vwsmap[0]/...\n";
+	    } else {
+	       @vwsmap = @tmpmap[0,1];
+	       $vhost = $tmphost;
+	       if (@tmpmap > 2) {
+		  my %vwdirs = @tmpmap;
+		  warn "Warning: multiple storage areas (@{[keys %tmpmap]}) ",
+					  "on $vhost, using $vwsmap[0]/...\n";
+	       }
+	       die "no such storage location: $vwsmap[0]\n" if ! -d $vwsmap[0];
+	    }
+=cut
 	 }
-	 close(FH_RULE);
-	 $new_spec .= "##:Profile: $opt_profile\n";
-      }
 
-      TEMP_ARGV: {
-	 local(@ARGV) = @ARGV;	# operate on temp argv
-	 StripOptions(\@ARGV, "tmode|region|ln|host|hpath|gpath=s",
-		    "ncaexported", "cachesize=s",
-	 );
-	 GetOptions("tag=s" => \$opt_tag, "tcomment=s" => \$opt_tco);
-	 if ($opt_tag && ($#ARGV == 0) && defined $ViewStgRoot) {
-	    $stg = "$ViewStgRoot/$ENV{LOGNAME}/$opt_tag.vws";
+	 {
+	    local(@ARGV) = @ARGV;	# operate on temp argv
+	    StripOptions(\@ARGV, qw(ncaexported|shareable_dos|nshareable_dos
+		    tmode|region|ln|host|hpath|gpath|cachesize|stream=s)
+	    );
+	    GetOptions(\%opt, qw(tag=s tcomment=s));
+	    last COMMAND if !$opt{tag};
+	    if ($opt{tag} && ($#ARGV == 0) && @vwsmap) {
+	       $gstg = "$vwsmap[0]/$ENV{LOGNAME}/$opt{tag}.vws";
+	    }
 	 }
-      }
-      push(@ARGV, '-tco', "Created by $ENV{LOGNAME} on " . localtime)
-								  if !$opt_tco;
-      push(@ARGV, $stg) if $stg;
-      if ($opt_tag) {
-	 if ($VobAdm && ($ENV{LOGNAME} ne $VobAdm)) {
-	    # Policy: personal views (workspaces) should be prefixed by name
-	    Warn "personal view names should match $ENV{LOGNAME}_*\n"
-		  if ($opt_tag !~ /^$ENV{LOGNAME}_/);
+	 splice(@ARGV, 1, 0, '-tco', "Created by $ENV{LOGNAME} on ".localtime)
+							  if !$opt{tcomment};
+	 if ($gstg) {
+	     my $lstg = "$vwsmap[1]/$ENV{LOGNAME}/$opt{tag}.vws";
+	     push(@ARGV, '-gpa', $gstg, '-hpa', $lstg, '-host', $vhost, $gstg);
+	 }
 
+	 if ($opt{tag}) {
 	    # Policy: view-storage areas should be in std place.
-	    if (defined $ViewStgRoot) {
-	       $stg = "$ViewStgRoot/$ENV{LOGNAME}/$opt_tag.vws";
-	       if ($ARGV[-1] =~ m%$stg$%) {
+	    if (@vwsmap) {
+	       my $stgpat = "$ENV{LOGNAME}/$opt{tag}.vws";
+	       if ($ARGV[-1] =~ m%$stgpat$%) {
 		  my($vwbase) = ($ARGV[-1] =~ m%(.+)/[^/]+\.vws$%);
 		  mkpath($vwbase, 0, 0755) unless -d $vwbase;
 	       } else {
-		  Warn "standard view storage is $stg\n";
+		  Warn "standard view storage path is /vws/.../$stgpat\n";
 	       }
 	    }
 	 }
       }
 
+      # Policy: personal views should be prefixed by username.
+      Warn "view names should match $ENV{LOGNAME}_*\n"
+	    if !grep(/^$ENV{LOGNAME}$/, @Admins) &&
+		     $opt{tag} !~ /^$ENV{LOGNAME}_/;
+
       # If an option was used requiring a special config spec, make the
       # view here, then change the spec, then exit. Must be done this way
       # because mkview provides no way to specify the initial config spec.
-      # Initialize the config spec according to the supplied profile.
-      if ($new_spec) {
-	 System($ClearCmd, @ARGV) && exit $?>>8;
-	 my $cstmp = "$TmpDir/mkview.cs.$opt_tag";
-	 open(FH_CSTMP, ">$cstmp") || Die "$cstmp: $!";
-	 print FH_CSTMP $new_spec;
-	 close(FH_CSTMP);
-	 unlink($cstmp) if !System($0, 'setcs', '-tag', $opt_tag, $cstmp);
+      # Also clone other properties such as cachesize and text mode.
+      if ($opt{clone}) {
+	 chomp(my @data = qx($CT lsview -prop -full $opt{clone}));
+	 my %lsview = map {(split /:\s*/)[0,1]} @data;
+	 splice(@ARGV, 1, 0, '-tmode', $lsview{'Text mode'})
+						   if $lsview{'Text mode'};
+	 my %properties = map {$_ => 1} split /\s+/, $lsview{'Properties'};
+	 for (keys %properties) { splice(@ARGV, 1, 0, "-$_") if /shareable_do/ }
+	 my($cachebytes) = map {(split /\s+/)[0]} map {(split /:\s*/)[1]}
+			      reverse qx($CT getcache -s -view $opt{clone});
+	 splice(@ARGV, 1, 0, '-cachesize', $cachebytes);
+	 System($CT, @ARGV) && exit $?>>8;
+	 my $cstmp = "$TmpDir/mkview.$$.cs.$opt{tag}";
+	 System("$CT catcs -tag $opt{clone} > $cstmp") && exit $?>>8;
+	 System("$CT setcs -tag $opt{tag} $cstmp") && exit $?>>8;
+	 unlink($cstmp);
 	 exit 0;
       }
 
@@ -1470,7 +1482,7 @@ Extended to handle the -dir/-rec/-all flags.
 
    if (/^unc/) {
       # Extension: allow and ignore comment flags for consistency.
-      StripOptions(\@ARGV, "cqe|nc", "c|cfile=s");
+      StripOptions(\@ARGV, qw(cqe|nc c|cfile=s));
 
       # Change default: always use -rm to 'unco'.
       splice(@ARGV, 1, 0, '-rm') unless grep /^-rm$|^-kee/, @ARGV;
@@ -1483,6 +1495,9 @@ Extended to handle the -dir/-rec/-all flags.
       # Similar to checkin/checkout hack.
       for (@ARGV[1..$#ARGV]) { $_ = readlink if -l && defined readlink }
 
+      # Allow -user to lsco, then take it away for unco itself.
+      StripOptions(\@ARGV, qw(user=s));
+
       last COMMAND;
    }
 
@@ -1490,16 +1505,134 @@ Extended to handle the -dir/-rec/-all flags.
 
 Extended to support the B<-me> flag (prepends E<lt>B<username>E<gt>_* to tag).
 
+Also completely implements the setview command on Windows where it's
+not native.  This is done by mapping a drive letter, cd-ing to that
+drive, and starting a subshell. A C<-persistent> flag is supported
+which causes the drive to stay mapped when done as well as C<-drive>
+allowing you to specify a drive letter.
+
 =cut
 
    if (/^setview$|^startview$|^endview$/) {
-      my($opt_setview_me);
-      GetOptions("me" => \$opt_setview_me);
-      $ARGV[-1] = join('_', $ENV{LOGNAME}, $ARGV[-1])
-	    if ($opt_setview_me && $ARGV[-1] !~ /^$ENV{LOGNAME}/);
       delete $ENV{CLEARCASE_SHPID}; # hack - see cleartool.plx
+      my %opt;
+      GetOptions(\%opt, 'me');
+      $ENV{LOGNAME} ||= $ENV{USERNAME};
+      $ARGV[-1] = join('_', $ENV{LOGNAME}, $ARGV[-1])
+		     if ($opt{me} && ($ARGV[-1] !~ /^$ENV{LOGNAME}/));
+      if (/^setview$/ && $Win32) {
+	 GetOptions(\%opt, qw(exec=s drive=s login ndrive persistent));
+	 $opt{exec} ||= $ENV{SHELL} || $ENV{COMSPEC} || 'cmd.exe';
+	 my $vtag = $ARGV[-1];
+	 my @used = grep /\w:\s+\\\\/, qx(net use);
+	 my @views = grep /\s+\\\\view\\$vtag\b/, grep !/unavailable/i, @used;
+	 my @drives = map {/(\w:)/ && uc($1)} @views;
+	 my $drive = $opt{drive} ? uc($opt{drive}) : $drives[0];
+	 my $mounted = 0;
+	 my $pers = $opt{persistent} ? '/persistent:yes' : '/persistent:no';
+	 my %taken = map {/(\w:)\s+\\\\view(\S+)/ && uc($1) => $2} @used;
+	 if (!$drive) {
+	     System($CT, 'startview', $vtag) if ! -d "//view/$vtag";
+	     $mounted = 1;
+	     for (reverse 'A'..'Z') {
+		 $drive = $_ . ':';
+		 last if !$taken{$drive} &&
+			 !System(qw(net use), $drive, "\\\\view\\$vtag", $pers);
+	     }
+	 } elsif ($opt{drive}) {
+	    $drive .= ':' if $drive !~ /:$/;
+	    die "cleartool: Error: $drive is in use by another view\n"
+				if $taken{$drive} && $taken{$drive} ne $vtag;
+	    if (! -d $drive) {
+	       $mounted = 1;
+	       System(qw(net use), $drive, "\\\\view\\$vtag", $pers) && exit 2;
+	    }
+	 }
+	 chdir $drive || die "$drive $!";
+	 $ENV{CLEARCASE_ROOT} = "\\\\view\\$vtag";
+	 $ENV{CLEARCASE_VIEWDRIVE} = $ENV{VD} = $drive;
+	 if ($mounted && !$opt{persistent}) {
+	    my $rc = System $opt{exec};
+	    System(qw(net use), $drive, '/delete');
+	    exit $rc;
+	 } else {
+	    Exec($opt{exec});
+	 }
+      }
       last COMMAND;
    }
+
+=item * WORKON
+
+New command - similar to setview but sets up any required environment
+variables as well. Also cd's to the I<initial working directory> within
+the view. This directory is defined as the output of B<ct catcs
+-start> (see).
+
+=cut
+
+    if (/^(rdl|workon)$/) {
+	# First arg (after -me is parsed) is considered the view name
+	# to make it easy to append foo=bar args.
+	my %opt;
+	GetOptions(\%opt, 'me');
+	shift @ARGV;	# get rid of pseudo-cmd
+	my $tag = shift @ARGV;
+	$tag = join('_', $ENV{LOGNAME}, $tag) if $opt{me};
+	for (@ARGV) {
+	    if (/\s/ && !/^(["']).*\1$/) {
+		$_ = qq('$_');
+	    }
+	}
+	my $setview_cmd = "$0 _setview_exec --reread @ARGV";
+	delete $ENV{CLEARCASE_SHPID}; # hack - see 'clt' script
+	Exec($0, qw(setview -exec), $setview_cmd, $tag);
+    }
+
+## undocumented - helper function for B<workon>
+
+    if (/^_setview_exec$/) {
+	my $tag = (split(m%[/\\]%, $ENV{CLEARCASE_ROOT}))[-1];
+	chomp(my($iwd) = Qx(qw(ct catcs --iwd --reread -tag), $tag));
+	chomp(my($rdlstr) = Qx(qw(ct catcs --rdl --reread -tag), $tag));
+
+	delete $ENV{_CT_RECURSION};
+
+	$ENV{CLEARCASE_MAKE_COMPAT} = 'gnu';
+
+	# Exec the user's shell
+	if ($rdlstr) {
+	    my @rdl = split(/\s+/, $rdlstr);
+	    shift @ARGV;	# get rid of pseudo-cmd
+	    push(@rdl, @ARGV);
+	    my($i, $j) = (0, 0);
+	    QUOTE: for (; $i <= $#rdl; $i++) {
+		if (my($quote) = ($rdl[$i] =~ /(["'])/)) {
+		    for ($j=$i+1; $j <= $#rdl; $j++) {
+			if ($rdl[$j] =~ /$quote/) {
+			    splice(@rdl, $i, 1+$j-$i, "@rdl[$i..$j]");
+			    next QUOTE;
+			}
+		    }
+		}
+	    }
+
+	    if ($iwd) {
+		print "+ cd $iwd\n";
+		chdir($iwd) || warn "$iwd: $!\n";
+	    }
+	    unshift(@rdl, 'rdl');
+	    print "+ @rdl\n";
+	    Exec(@rdl);
+	} else {
+	    if ($iwd) {
+		print "+ cd $iwd\n";
+		chdir($iwd) || warn "$iwd: $!\n";
+	    }
+	    my $sh = (-x '/bin/sh') ? '/bin/sh' : 'sh';
+	    Exec($ENV{SHELL} || $sh);
+	}
+    }
 
 }
 
@@ -1517,7 +1650,7 @@ __END__
 Working on a profile is actually quite easy if you remember that within
 it B<$_> is set to the command name, B<@ARGV> is the complete command
 line and B<@_> is a copy of it, B<$0> is the path to the wrapper, and
-B<$ClearCmd> is the path to the real I<cleartool> program.  Also, the
+B<$CT> is the path to the real I<cleartool> program.  Also, the
 hash B<%Vgra> is a reverse lookup such that C<I<$ARGV[$Vgra{xyz}] eq "xyz">>.
 
 With most perl modules, the C<.pm> code itself (the part that gets

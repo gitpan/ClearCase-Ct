@@ -2,18 +2,22 @@
 			ClearCase::Ct
 ========================================================================
 
-Copyright (c) 1997,1998 David Boyce (dsb@world.std.com). All rights
-reserved.  This program is free software; you can redistribute it
-and/or modify it under the same terms as Perl itself.
-
 ************************************************************************
+	  THIS MODULE HAS BEEN REPLACED WITH ClearCase::Wrapper, A
+	  FUNCTIONALLY IDENTICAL BUT GREATLY IMPROVED VERSION.
+	  ClearCase::Wrapper IS MUCH FASTER, HAS A CLEANER
+	  INTERFACE, PROVIDES MORE INFRASTRUCTURE SUPPORT FOR
+	  UNIX/WINDOWS INTEROP, ETC. THIS LAST VERSION OF
+	  ClearCase::Ct IS PUBLISHED ONLY FOR THE SAKE OF
+	  POINTING USERS AT THE NEW MODULE.
+************************************************************************
+
 Note: this module is of use only to users of the ClearCase command-line
 interface tool 'cleartool', on Unix or NT systems.
 
 Even if you don't read README files - and you should - please read the
 section entitled "SAMPLE PROFILE" at the very least! But please read
 the whole thing. Sorry it's so long.
-************************************************************************
 
 DESCRIPTION/BACKGROUND
 ----------------------
@@ -65,7 +69,7 @@ of local policy and thus is completely under local control.
 It turns out to be a surprisingly powerful mechanism for extending
 command-line ClearCase on Unix or NT, because you can not only modify
 defaults but add your own new flags or even make new pseudo-commands as
-well. Creating a ~/.ct_profile.pl is tougher than a ~/.clearcase_profile
+well. Adding to Profile.pm is tougher than a ~/.clearcase_profile
 because you need to be somewhat knowledgeable about Perl, but it also
 removes an upper bound on what can be done.  Once you set Perl loose on
 the command line you can do just about anything with it, as the
@@ -86,17 +90,17 @@ customizations you may prefer. But in fact I've placed some of my more
 generally useful customizations there for pedagogical purposes. I
 actually spent a lot of time trying to decide whether to deliver these
 in Profile.pm or to bury them in a README or a Profile.pm.sample. On
-the one hand moving it aside would complicate the install process and some
-percentage of users (the ones who don't read readme files) would never
-find it. On the other hand, once it's delivered in-place, no amount of
-protestation will convince some people that it's not part of the
-"product" per se. In the end I decided on the latter strategy but will
-say this loudly in hopes of it being heard:
+the one hand, moving it aside would complicate the install process and
+some percentage of users (the ones who don't read readme files!) would
+never find it. On the other hand, once it's delivered in-place, no
+amount of protestation will convince some people that it's not part of
+the "product" per se. In the end I decided on the latter strategy but
+will say this loudly in hopes of it being heard:
 
 THE SUPPLIED PROFILE IS A **SAMPLE**.  IT IS **YOURS** TO CONFIGURE,
 ADD TO, OR SUBTRACT FROM AS YOU WISH.
 
-In fact you could truncate your installed Profile.pm to zero-length and
+In fact you could truncate the installed Profile.pm to zero-length and
 the wrapper program wouldn't be broken; you'd just lose your
 customizations. Or rather my customizations.
 
@@ -156,14 +160,14 @@ other wrappers, but not in a way which looks just like the real thing.
 
 -> As an example of building a new command, try out "ct edattr".  This
 is a handy extension for modifying attributes, analogous to the "edcs"
-cmd.  Running "ct edattr foo" dumps the attributes of foo and their
+cmd.  Running "ct edattr foo@@" dumps the attributes of foo and their
 values into a temp file and runs your editor-of-choice on that file.
 When you finish editing the file, it modifies any attributes you've
 modified, adds any you've added, removes any you removed, etc. Types
 are created as required and removed if the removed attribute was the
 last remaining instance.
 
--> An example of removing a minor irritation: a user complained that
+-> An example of removing a minor irritation: one user complained that
 "cleartool unco" doesn't recognize comment flags such as -nc. This
 bugged him because if after running "ct co -nc <list-of-files>" he
 realized he'd made a mistake, he'd use ^co^unco (csh syntax for
@@ -197,12 +201,12 @@ Then set the environment variable:
 
 and ct should find the local version for as long as that EV is in effect.
 
-Of course, to complete the installation you'll need to put ct somewhere
-on your path and remove the 'ct' alias if you have one.
+Of course, to complete the installation you'll need to put the wrapper
+somewhere on your path and remove the 'ct' alias if you have one.
 
-*Remember to keep your Profile.pm under source control!* Since it may be
-locally modified, you don't want to lose your changes when installing
-a newer version of this module!!
+*Remember to keep your Profile.pm under source control!* Since it may
+be locally modified, you don't want to lose your changes when running a
+"make install" with a newer version!!
 
 PROFILE PROGRAMMING
 -----------
@@ -222,10 +226,10 @@ Thus the following one-liner would change the "ct unco" default from
 
    splice(@ARGV, 1, 0, '-rm') if /^unc/ && !grep(/^-kee|^-rm$/, @ARGV);
 
-If you know enough Perl to see that this adds -rm to the command
-line iff the command name matches "unc*" and neither -keep nor -rm was
-supplied explicitly, you know enough to set up a profile. To do more
-complex things it's a good idea to become very familiar with
+If you know enough Perl to see that this adds -rm to the command line
+as long as the command name matches "unc*" and neither -keep nor -rm
+was supplied explicitly, you know enough to set up a profile. To do
+more complex things it's a good idea to become very familiar with
 Getopt::Long, since it's used heavily to selectively parse the command
 line.
 
@@ -282,3 +286,10 @@ FEEDBACK
 
 Feel free to communicate bugs, suggestions, or (best of all) patches to
 the above address.
+
+COPYRIGHT
+--------
+
+Copyright (c) 1997,1998,1999,2000 David Boyce (dsb@world.std.com). All
+rights reserved.  This program is free software; you can redistribute
+it and/or modify it under the same terms as Perl itself.

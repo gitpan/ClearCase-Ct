@@ -85,3 +85,16 @@ Revision history for Perl extension ClearCase::Ct.
 1.17 Tue Jun  1 12:46:32 EDT 1999
 	- Packaging various minor tweaks and bugfixes.
 	- Updated prompt() function.
+
+1.20 Tue Apr  4 21:17:55 EDT 2000
+	- LAST VERSION IN THIS FORMAT!!!!!!!!!!!!!!!!
+	  This module has been replaced with ClearCase::Wrapper, a
+	  functionally identical but greatly improved version.
+	  ClearCase::Wrapper is much faster, has a cleaner
+	  interface, provides more infrastructure support for
+	  UNIX/Windows interop, etc. This final version of ClearCase::Ct
+	  is published only for the sake of pointing users at the new module.
+	- Also there's some underused functionality here which I
+	  didn't carry forward into ClearCase::Wrapper. If anyone
+	  should happen to want it, it should be pretty straightforward
+	  to port over.

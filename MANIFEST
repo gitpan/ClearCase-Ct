@@ -2,7 +2,6 @@ Changes
 MANIFEST
 Makefile.PL
 README
-TODO
 Ct.pm
 Readme.html
 lib/ClearCase/Ct/Profile.pm
