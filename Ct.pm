@@ -22,9 +22,12 @@ use vars qw($VERSION @ISA @EXPORT_OK %EXPORT_TAGS);
 require Exporter;
 
 @ISA = qw(Exporter);
-$VERSION = '1.00';
+$VERSION = '1.01';
 
 use strict;
+
+# We could use this but it seems like a pretty heavyweight operation.
+# use Config.pm;
 
 # Hacks for portability with NT env vars.
 $ENV{LOGNAME} ||= lc $ENV{USERNAME};
@@ -136,7 +139,9 @@ sub Exec
       system(@_);
       exit $?;
    } else {
-      exec(@_) || Die "$_[0]: $!";
+      exec(@_);
+      # if caller checks for return, respect that decision
+      Die "$_[0]: $!" unless defined wantarray;
    }
 }
 
@@ -164,13 +169,18 @@ profiles.
 sub Backtick
 {
    Dbg("backtick: @_", 1);
-   die unless defined(my $pid = open(CHILD, "-|"));
-   if ($pid) {			#parent
-      my @output = <CHILD>;
-      close(CHILD);
-      return @output;
-   } else {			# child
-      exec(@_) || die "$_[0]: $!";
+   # No fork() on &^&#@$ Win32.
+   if ($Win32) {
+      return `@_`;
+   } else {
+      die unless defined(my $pid = open(CHILD, "-|"));
+      if ($pid) {			#parent
+	 my @output = <CHILD>;
+	 close(CHILD);
+	 return @output;
+      } else {			# child
+	 exec(@_) || die "$_[0]: $!";
+      }
    }
 }
 

@@ -128,9 +128,9 @@ $opt_debug ||= $ENV{_CT_DEBUG};
 
 # Print inlined documentation and exit if requested.
 if ($opt_usage || ($ARGV[0] eq 'man' && $ARGV[1] eq $Wrapper)) {
-   exec('perldoc', $0) || die "perldoc: $!";
+   Exec('perldoc', $0);
 } elsif ($opt_help || ($ARGV[0] eq 'man' && $ARGV[1] =~ /^profile(\.|\Z)/i)) {
-   exec('perldoc', 'ClearCase::Ct::Profile') || die "perldoc: $!";
+   Exec('perldoc', 'ClearCase::Ct::Profile');
 }
 
 # We keep a 'recursion stack' in the env in order to detect when

@@ -28,3 +28,7 @@ Revision history for Perl extension ClearCase::Ct.
 1.00  Tue Aug 25 19:20:12 EDT 1998
 	- improved docs
 	- first public release
+
+1.01  Tue Sep  1 16:32:10 EDT 1998
+	- improved portability to NT
+	- added edcmnt -new

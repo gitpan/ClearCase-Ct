@@ -138,7 +138,7 @@ Detailed descriptions of all the above may be found below.
 
    $HelpData{edattr} .= "Usage: *edattr object-selector ...";
 
-   $HelpData{edcmnt} .= "Usage: *edcmnt object-selector ...";
+   $HelpData{edcmnt} .= "Usage: *edcmnt [-new] object-selector ...";
 }
 
 ###################### End of Help Section #############################
@@ -417,6 +417,13 @@ before typing the comment.
       # the path to the actual element. Same as at checkout time.
       for (@ARGV[1..$#ARGV]) { $_ = readlink if -l && defined readlink }
 
+      # It's too easy for users to kill a putative checkin-post
+      # trigger via Ctrl-C. We don't want to ignore all
+      # signals, just the one which is easy to send via the
+      # keyboard - i.e. make them do a kill -HUP if they really need to
+      # kill the trigger.
+      $SIG{INT} = 'IGNORE';	## this does not appear to be effective
+
       # Extension: -d/iff flag runs 'cleartool diff' on each elem first
       my($myopt_diff);
       GetOptions("diff" => \$myopt_diff);
@@ -561,10 +568,10 @@ of all changes currently checked-out in your view with C<ct review -all>.
 
 =item * EDATTR
 
-New command, inspired by the B<edcs> cmd.  Similarly to B<edcs>,
-B<edattr> dumps the attributes of the specified element(s) into a temp
+New command, inspired by the B<edcs> cmd.  Analogous to B<edcs>,
+B<edattr> dumps the attributes of the specified elements into a temp
 file, then execs your favorite editor on it, and adds, removes or
-modifies the attributes as appropriate when you exit the editor.
+modifies the attributes as appropriate after you exit the editor.
 Attribute types are created and deleted automatically.  This is
 particularly useful on Unix platforms because as of CC 3.2 the Unix GUI
 doesn't support modification of attributes.
@@ -640,19 +647,25 @@ doesn't support modification of attributes.
 
 Similar to B<edattr>. For each version specified, dump the comment
 into a temp file, allow the user to edit it with his/her favorite editor,
-then change the comment to the results of the edit.
+then change the version's comment to the results of the edit. The B<-new>
+flag causes it to ignore the previous comment.
 
 =cut
 
    if (/^edcmnt$/) {
+      my($myopt_new);
+      GetOptions("new" => \$myopt_new);
       Die "$HelpData{$_}\n" unless @ARGV > 1;
       my $retstat = 0;
       my $edtmp = "$TmpDir/$_.$$";
       # Checksum before and after edit - only update if changed.
       my($csum_pre, $csum_post);
       for my $elem (@ARGV[1..$#ARGV]) {
-	 my @input = `$ClearCmd desc -fmt %c $elem`;
-	 next if $?;
+	 my @input = ();
+	 if (!$myopt_new) {
+	    @input = Backtick($ClearCmd, qw(desc -fmt %c), $elem);
+	    next if $?;
+	 }
 	 open(EDTMP, ">$edtmp") || Die "$edtmp: $!";
 	 for (@input) {
 	    $csum_pre += unpack("%16C*", $_);
