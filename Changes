@@ -42,11 +42,13 @@ Revision history for Perl extension ClearCase::Ct.
 	- added code to change mktype defaults to -global
 
 1.06  Thu Sep 24 20:44:56 EDT 1998
-	- fixed minor packaging errors
-
 1.07  Wed Oct  7 17:37:58 EDT 1998
-	- fixed NT packaging problems
-
 1.08  Thu Oct  8 11:11:20 EDT 1998
-	- worked around an NT install bug (in ActiveState 5.005_02)
+1.09  Mon Oct 12 13:12:30 EDT 1998
 	- fixed a minor bug in 'ct diff'.
+	- tweaks for packaging issues
+
+1.09  Thu Oct 15 14:42:20 EDT 1998
+	- simplified - remove PostOpEvalStack code.
+	  This can be more easily handled by completely
+	  wrapping the native command within Profile.pm.

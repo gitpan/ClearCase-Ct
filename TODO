@@ -1,5 +1,12 @@
-Brad Appleton has suggested that the native Perl syntax used for the
-~/.ct_profile.pl is too complex for the average user, and has described
-a method he's had some success for using a simpler syntax without a
-large speed penalty. I may get around to at least analyzing his
-suggestion and maybe even implementing it at some point.
+=> Brad Appleton has suggested that the native Perl syntax used for the
+   ~/.ct_profile.pl is too complex for the average user, and has described
+   a method he's had some success with for using a simpler syntax without
+   a large speed penalty. I may get around to at least analyzing his
+   suggestion and maybe even implementing it at some point. Unfortunately
+   it relies on Data::Dumper which isn't standard until 5.005 so there may
+   be useability implications.
+
+=> It would be nice to implement Unix snapshot views (e.g.
+   'ct mkview -snapshot' and 'ct update') through this interface.
+   Presumably there are Perl solutions out there now to implement some
+   variant of snapshot views; if I can get hold of one I might wire it in.

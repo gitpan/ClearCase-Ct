@@ -214,6 +214,12 @@ typing the comment.
 
 <P>
 
+Also extended to implement a <STRONG>-iff</STRONG> flag. This reduces the supplied list of elements to those truly checked
+out. E.g. <CODE>ct ct -iff *.c</CODE> will check in only the elements which match *.c <STRONG>and</STRONG> are checked out, without producing a lot of errors.
+
+
+<P>
+
 <LI><STRONG><A NAME="item_CO">CO/CHECKOUT
 
 </A></STRONG>
@@ -261,6 +267,15 @@ New convenience command: sends a context diff between current and previous
 versions to the 'pprint' program, which prints it with line numbers
 appropriate for code reviews. E.g. you could generate a listing of all
 changes currently checked-out in your view with <CODE>ct review -all</CODE>.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_ECLIPSE">ECLIPSE
+
+</A></STRONG>
+New command. <EM>Eclipse</EM>s an element by copying a view-private version over it. This is the
+dynamic-view equivalent of ``hijacking'' a file in a snapshot view.
 
 
 <P>

@@ -8,9 +8,9 @@ ct - general-purpose wrapper for B<cleartool>
 
 =head1 SUMMARY
 
-Use the B<--help> option to see full documentation for the current
-customizations. The same text is also available via
-"perldoc ClearCase::Ct::Profile".
+Use B<ct man profile> to see full documentation for the current
+customizations. The same text is also available via "perldoc
+ClearCase::Ct::Profile".
 
 =head1 USAGE
 
@@ -29,14 +29,14 @@ customizations. The same text is also available via
 This is a wrapper over the clearcase command-line tool cleartool.  If
 no profile files are found, or if the C<--nopro> flag is used, it
 becomes a no-op, simply exec-ing the underlying command. If profiles
-are found, they are C<require>d (I<included>) before continuing.  This
-allows anyone who knows Perl sufficiently to extend and/or modify the
-behavior of clearcase commands, or to create entire new commands which
-will appear as extensions to ClearCase. Two profiles are searched for:
-first I<Profile.pm> on the standard @INC path, then I<~/.ct_profile.pl> if
-it exists. I<Profile.pm> is for site policy and enhancements, while the
-I<~/.ct_profile.pl> is an opportunity for the user to customize his/her
-personal environment.
+are found, they are C<require>d (aka I<included>) before continuing.
+This allows anyone who knows Perl sufficiently to extend and/or modify
+the behavior of clearcase commands, or to create entire new commands
+which will appear as extensions to ClearCase. Two profiles are searched
+for:  first I<Profile.pm> on the standard @INC path, then
+I<~/.ct_profile.pl> if it exists. I<Profile.pm> is for site policy and
+enhancements, while the I<~/.ct_profile.pl> is an opportunity for the
+user to customize his/her personal environment.
 
 Typically such value-added code will examine $ARGV[0] (the command
 name) and modify the remainder of @ARGV as desired.  But there are no
@@ -55,11 +55,7 @@ namespace of command-line flags; those beginning with the traditional
 '-' are directed at the underlying clearcase command(s), while flags
 beginning with '--' are interpreted by the wrapper code.
 
-That's all there is to it, unless the pre-op code pushes something onto
-the @PostOpEvalStack array.  If any code is placed in @PostOpEvalStack,
-we fork before running the real cmd and 'eval' the post-op code after it
-finishes. The post-op code, if any, will have access to the command's
-return code in C<$Retcode>.
+That's all there is to it.
 
 =head1 COPYRIGHT
 
@@ -80,9 +76,9 @@ require 5.004;
 use ClearCase::Ct qw(:all);
 
 # We use Getopt::Long to parse an orthogonal namespace of flags directed
-# at this wrapper program itself. The --xyz flags are meant for this
-# program, the -xyz flags are sent on to clearcase. However, we don't
-# make use of the 'prefix' setting because it wasn't in core 5.004.
+# at this wrapper program itself. The --xyz flags are meant for the
+# wrapper while -xyz flags are sent on to cleartool. However, we avoid
+# Getopt::Long::config('prefix') because it wasn't in core 5.004.
 {
    use vars qw(
       $opt_usage
@@ -91,6 +87,7 @@ use ClearCase::Ct qw(:all);
       $opt_nopro
       $opt_quiet
       $opt_reread
+      $opt_noexec
       $opt_verbose
       $opt_debug
    );
@@ -105,16 +102,15 @@ use ClearCase::Ct qw(:all);
    # The real cleartool doesn't handle argv[1] == -h so we take care of it.
    GetOptions("help", "usage") if $ARGV[0] =~ /-[hu]/;
 
-   # These might conflict with real CC flags so disable abbrevs.
    # Note that we don't make use of 'prefix=--' because it wasn't in
    # core 5.004.
    # $Cmd_Help represents the "real" -h flag but we parse it here as a
-   # special case. It's global because it short-circuits Profile.pm
+   # special case. It's global because it short-circuits Profile.pm.
    if (grep /--|-h/, @ARGV) {
-      $Getopt::Long::autoabbrev = 0;
-      GetOptions("nopro", "quiet", "reread", "verbose", "debug",
+      # disable abbrevs in case of conflict with real CC flags
+      local $Getopt::Long::autoabbrev = 0;
+      GetOptions("nopro", "quiet", "reread", "verbose", "debug", "noexec",
 		  "h|he|hel|help" => \$Cmd_Help);
-      $Getopt::Long::autoabbrev = 1;
    }
 }
 
@@ -245,8 +241,11 @@ warn "+ $Wrapper @ARGV\n" if $opt_verbose && !$opt_quiet;
 
 # Now exec the real cmd and we're done, unless a post-op eval stack exists.
 # Also exec if running setuid since we won't be running any post-ops anyway.
-if (@::PostOpEvalStack && ! $Setuid) {
-   $::Retcode = System($ClearCmd, @ARGV);
+if ($opt_noexec && !$Setuid) {
+   System($ClearCmd, @ARGV);
+   # The return code of the real cleartool cmd. No explicit exit in case
+   # another perl process wants to 'require' ct instead of exec-ing it.
+   $?>>8;
 } else {
    if ($Setuid) {
       # Security considerations before exec-ing in setuid mode.
@@ -255,20 +254,5 @@ if (@::PostOpEvalStack && ! $Setuid) {
       delete @ENV{qw(IFS CDPATH ENV BASH_ENV)};
    }
    Exec($ClearCmd, @ARGV);
+   exit 1;
 }
-
-#############################################################################
-# Post-op processing
-#############################################################################
-
-# Caught a signal - skip post-op code.
-exit $::Retcode if ($::Retcode & 0xff);
-
-# Execute any post-op eval code nuggets.
-for (@::PostOpEvalStack) {
-   Dbg("EVAL $_");
-   eval || ( chomp $@, Die "$Wrapper: $@" );
-}
-
-# The return code of the real command.
-exit $::Retcode >> 8;

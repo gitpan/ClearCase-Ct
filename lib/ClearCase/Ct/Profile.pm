@@ -1,13 +1,14 @@
 #!/usr/local/bin/perl	# for doc purposes only, not executable as is
 
-use vars qw($VERSION);
-
-# Note: this version may move independently of the one in Ct.pm.
-$VERSION = '1.08';
+# Note: the version below may move independently of the one in Ct.pm.
 
 =head1 NAME
 
 Profile.pm - site-wide customizations for B<ct> wrapper
+
+=head1 VERSION
+
+1.10
 
 =head1 SYNOPSIS
 
@@ -113,7 +114,7 @@ are available via the standard B<-h> flag.
            * [-expand|-source|-branch|-vobs|-project|-promote]";
 
    $Help{checkin} .= "
-                  * [-dir|-rec|-all] [-diff [diff-options]] [-revert]";
+                  * [-dir|-rec|-all] [-iff] [-diff [diff-options]] [-revert]";
 
    $Help{diff} .= "
           * [-c] [-dir|-rec|-all]";
@@ -143,6 +144,8 @@ are available via the standard B<-h> flag.
 
    $Help{synccs} .= "Usage: *synccs [-tag view-tag] -profile profile-name";
 
+   $Help{eclipse} .= "Usage: *eclipse element ...";
+
    $Help{edattr} .= "Usage: *edattr object-selector ...";
 
    $Help{edcmnt} .= "Usage: *edcmnt [-new] object-selector ...";
@@ -159,6 +162,9 @@ umask 002;
 
 # Just in case we need to do a 'mkdir -p' type of thing.
 use autouse 'File::Path' => qw(mkpath);
+
+# Just in case we need to copy a file ...
+use autouse 'File::Copy' => qw(copy move);
 
 # Assume that all vobs are owned by a single pseudo-user of this name:
 my $VobAdm = 'vobadm';
@@ -402,6 +408,11 @@ Extended to implement a B<-diff> flag, which runs a B<ct diff -pred>
 command before each checkin so the user can look at his/her changes
 before typing the comment.
 
+Also extended to implement a B<-iff> flag. This reduces the supplied list
+of elements to those truly checked out. E.g. C<ct ct -iff *.c> will check
+in only the elements which match *.c B<and> are checked out, without
+producing a lot of errors.
+
 =cut
 
    if (/^ci$|^checkin$/) {
@@ -425,9 +436,32 @@ before typing the comment.
       # kill the trigger.
       $SIG{INT} = 'IGNORE';	## this does not appear to be effective
 
+      my($opt_ci_diff, $opt_ci_revert, $opt_ci_iff);
+      {
+	 local $Getopt::Long::autoabbrev = 0; # don't mistake -ide for -iff!
+	 GetOptions("diff" => \$opt_ci_diff, "revert" => \$opt_ci_revert,
+		     "iff" => \$opt_ci_iff);
+      }
+
+      # Extension: -iff flag trims @ARGV to those really checked out.
+      if ($opt_ci_iff) {
+	 my @files = RemainingOptions(\@ARGV,
+		     "cqe|nc|nwarn|cr|ptime|identical|rm", "c|cfile|from=s",
+		     "serial_format|diff_format|window", "context",
+		     "graphical|tiny|hstack|vstack|predecessor", "options=s");
+	 shift @files;
+	 my $flag_cnt = @ARGV - @files;
+	 my @selected = `$ClearCmd lsco -s @files 2>$DevNull`;
+	 if (!@selected) {
+	    `$ClearCmd lsco -s @files`;
+	    warn "no elements selected\n" unless $?;
+	    exit $?>>8;
+	 }
+	 chomp @selected;
+	 splice(@ARGV, $flag_cnt, @files, @selected);
+      }
+
       # Extension: -d/iff flag runs 'cleartool diff' on each elem first
-      my($opt_ci_diff, $opt_ci_revert);
-      GetOptions("diff" => \$opt_ci_diff, "revert" => \$opt_ci_revert);
       if ($opt_ci_diff) {
 	 my(@elems, @diff_args);
 	 {
@@ -439,7 +473,7 @@ before typing the comment.
 	    # Assuming the elements come after remaining flags, figure
 	    # out where they start.
 	    @elems = RemainingOptions(\@ARGV,
-		     "serial_format|diff_format|window",
+		     "serial_format|diff_format|window", "context",
 		     "graphical|tiny|hstack|vstack|predecessor", "options=s");
 	    my $start = @ARGV - @elems;
 	    # The part of the argv before the element list must be diff-flags.
@@ -452,7 +486,7 @@ before typing the comment.
 	 splice(@ARGV, @ARGV - @elems);
 	 if (@elems) {
 	    for $elem (@elems) {
-	       my $diff = System($ClearCmd, qw(diff -pred), @diff_args, $elem);
+	       my $diff = System($Wrapper, qw(diff -pred), @diff_args, $elem);
 	       # If -revert and no diffs, uncheckout instead of checkin
 	       if ($opt_ci_revert && !$diff) {
 		  System($ClearCmd, qw(unco -rm), $elem);
@@ -554,10 +588,13 @@ of all changes currently checked-out in your view with C<ct review -all>.
 			"graphical|tiny|hstack|vstack|predecessor",
 			"options=s");
 
-      GetOptions(\%Opt, 'c', 't=s');
+      {
+	 local $Getopt::Long::autoabbrev = 0;
+	 GetOptions(\%Opt, 'context|c', 't=s');
+      }
 
       if (/^review$/) {
-	 $Opt{c} = 1;
+	 $Opt{context} = 1;
 	 $Opt{t} ||= 'Code Review';
       }
 
@@ -568,7 +605,7 @@ of all changes currently checked-out in your view with C<ct review -all>.
 	 shift @elems;
       }
 
-      if ($Opt{c}) {
+      if ($Opt{context}) {
 	 my $finalstat = 0;
 	 for my $elem (@elems) {
 	    my $pred = `$ClearCmd desc -short -pred $elem`;
@@ -598,6 +635,59 @@ of all changes currently checked-out in your view with C<ct review -all>.
       last COMMAND;
    }
 
+
+=item * ECLIPSE
+
+New command. I<Eclipse>s an element by copying a view-private version
+over it. This is the dynamic-view equivalent of "hijacking" a file in a
+snapshot view. Typically of use if you need temporary write access to a
+file when the VOB is locked, or it's checked out reserved.  B<Eclipsing
+elements can lead to dangerous levels of confusion - use with care!>
+
+=cut
+
+   if (/^eclipse$/) {
+      Die "$Help{$_}\n" unless @ARGV > 1;
+      my $retstat = 0;
+      shift @ARGV;
+      my @orig = Backtick($ClearCmd, catcs);
+      for my $elem (@ARGV) {
+	 if (! -f $elem || -w _) {
+	    Warn "don't know how to eclipse '$elem'\n";
+	    $retstat++;
+	    next;
+	 }
+	 my $cstmp = "$TmpDir/cstmp.$$";
+	 open(CSTMP, ">$cstmp") || die "$cstmp: $!";
+	 print CSTMP "element $elem -none\n";
+	 print CSTMP @orig;
+	 close(CSTMP) || die "$cstmp: $!";
+	 if (!copy($elem, "$elem.eclipse.$$")) {
+	    Warn "$elem: $!\n";
+	    $retstat++;
+	    next;
+	 }
+	 if (System($ClearCmd, qw(setcs), $cstmp)) {
+	    $retstat++;
+	    next;
+	 }
+	 if (!move("$elem.eclipse.$$", $elem)) {
+	    Warn "$elem: $!\n";
+	    $retstat++;
+	    next;
+	 }
+	 open(CSTMP, ">$cstmp") || die "$cstmp: $!";
+	 print CSTMP @orig;
+	 close(CSTMP) || die "$cstmp: $!";
+	 if (System($ClearCmd, qw(setcs), $cstmp)) {
+	    Warn "your config spec may be broken!!";
+	    exit 1;
+	 }
+	 unlink $cstmp;
+      }
+      exit $retstat;
+   }
+
 =item * EDATTR
 
 New command, inspired by the B<edcs> cmd.  Analogous to B<edcs>,
@@ -611,12 +701,12 @@ doesn't support modification of attributes.
 =cut
 
    if (/^edattr$/) {
-      Die "$Help{$_}\n" unless @ARGV > 1;
+      shift @ARGV;
+      Die "$Help{$_}\n" unless @ARGV;
       my $retstat = 0;
-      my $edtmp = "$TmpDir/$_.$$";
-      for my $elem (@ARGV[1..$#ARGV]) {
+      for my $elem (@ARGV) {
 	 my %indata = ();
-	 $elem .= '@@' unless $elem =~ /\@\@/;
+	 #$elem .= '@@' unless $elem =~ /\@\@/;
 	 my @lines = `$ClearCmd desc -aattr -all $elem`; 
 	 if ($?) {
 	    $retstat++;
@@ -626,6 +716,7 @@ doesn't support modification of attributes.
 	    next unless $line =~ /\s*(\S+)\s+=\s+(.+)/;
 	    $indata{$1} = $2;
 	 }
+	 my $edtmp = "$TmpDir/edattr.$$";
 	 open(EDTMP, ">$edtmp") || die "$edtmp: $!";
 	 print EDTMP "# $elem (format: attr = \"val\"):\n\n" if ! keys %indata;
 	 for (sort keys %indata) { print EDTMP "$_ = $indata{$_}\n" }
@@ -640,10 +731,11 @@ doesn't support modification of attributes.
 	    next if /^\s*$|^\s*#.*$/;	# ignore null and comment lines
 	    if (/\s*(\S+)\s+=\s+(.+)/) {
 	       my($attr, $val) = ($1, $2);
-	       my $oldval = $indata{$attr};
-	       delete $indata{$attr};
-	       # Skip if unchanged.
-	       next if $oldval eq $val;
+	       if (defined(my $oldval = $indata{$attr})) {
+		  delete $indata{$attr};
+		  # Skip if data unchanged.
+		  next if $oldval eq $val;
+	       }
 	       # Figure out what type the new attype needs to be.
 	       # Sorry, didn't bother with -vtype time.
 	       if (System("$ClearCmd lstype attype:$attr >$DevNull 2>&1")) {
@@ -662,10 +754,11 @@ doesn't support modification of attributes.
 		  if System($ClearCmd, qw(mkattr -replace), $attr, $val, $elem);
 	    } else {
 	       $retstat++;
-	       Warn "$ARGV[0]: incorrect line format: '$_'";
+	       Warn "edattr: incorrect line format: '$_'";
 	    }
 	 }
 	 close(EDTMP) || die "$edtmp: $!";
+	 unlink $edtmp;
 
 	 # Now, delete any attrs that were deleted from the temp file.
 	 # First we do a simple rmattr; then see if it was the last of
@@ -674,11 +767,13 @@ doesn't support modification of attributes.
 	    if (System($ClearCmd, 'rmattr', $_, $elem)) {
 	       $retstat++;
 	    } else {
-	       System($ClearCmd, 'rmtype', '-rmall', "attype:$_");
+	       # Don't remove the type if its vob serves as an admin vob!
+	       my(@hlinks) = grep /^<-/, `ct desc -s -ahlink AdminVOB vob:.`;
+	       System($ClearCmd, 'rmtype', '-rmall', "attype:$_")
+		  if $? == 0 && ! @hlinks;
 	    }
 	 }
       }
-      unlink $edtmp;
       exit $retstat;
    }
 
@@ -694,17 +789,18 @@ flag causes it to ignore the previous comment.
    if (/^edcmnt$/) {
       my($opt_edcmnt_new);
       GetOptions("new" => \$opt_edcmnt_new);
-      Die "$Help{$_}\n" unless @ARGV > 1;
+      shift @ARGV;
+      Die "$Help{$_}\n" unless @ARGV;
       my $retstat = 0;
-      my $edtmp = "$TmpDir/$_.$$";
       # Checksum before and after edit - only update if changed.
       my($csum_pre, $csum_post);
-      for my $elem (@ARGV[1..$#ARGV]) {
+      for my $elem (@ARGV) {
 	 my @input = ();
 	 if (!$opt_edcmnt_new) {
 	    @input = Backtick($ClearCmd, qw(desc -fmt %c), $elem);
 	    next if $?;
 	 }
+	 my $edtmp = "$TmpDir/edcmnt.$$";
 	 open(EDTMP, ">$edtmp") || Die "$edtmp: $!";
 	 for (@input) {
 	    $csum_pre += unpack("%16C*", $_);
@@ -720,8 +816,8 @@ flag causes it to ignore the previous comment.
 	    $retstat++;
 	    next;
 	 }
+	 unlink $edtmp;
       }
-      unlink $edtmp;
       exit $retstat;
    }
 
@@ -1087,22 +1183,19 @@ EOCS
 
       # Only workspaces get the config-spec initialization treatment below;
       # for other views we stay out of the way.
-      last COMMAND unless $opt_tag =~ /^$ENV{LOGNAME}_/;
 
-      # Initialize a new config spec with the appropriate boilerplate.
-      # This needs to be done in a post-op action since the mkview
-      # command offers no interface to specify an initial config spec.
-      if ($new_spec) {
-	 push(@::PostOpEvalStack, '_mkview_post() unless $::Retcode');
-	 sub _mkview_post {
-	    return $::Retcode if $::Retcode;
-	    my $tag = ViewTag() || return 0;
-	    my $cstmp = "$TmpDir/mkview.cs.$tag";
-	    open(FH_CSTMP, ">$cstmp") || return 0;
+      # Initialize the config spec according to the supplied profile.
+      if ($opt_tag =~ /^$ENV{LOGNAME}_/) {
+	 if (System($ClearCmd, @ARGV)) {
+	    exit $?>>8;
+	 } else {
+	    my $cstmp = "$TmpDir/mkview.cs.$opt_tag";
+	    open(FH_CSTMP, ">$cstmp") || Die "$cstmp: $!";
 	    print FH_CSTMP $new_spec;
-	    close(FH_CSTMP) || return 0;
-	    unlink($cstmp) unless System($0, 'setcs', '-tag', $tag, $cstmp);
-	 };
+	    close(FH_CSTMP);
+	    unlink($cstmp) unless System($0, 'setcs', '-tag', $opt_tag, $cstmp);
+	 }
+	 exit 0;
       }
 
       last COMMAND;
