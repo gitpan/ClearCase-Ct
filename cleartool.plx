@@ -124,7 +124,7 @@ use strict;
 # then a trigger (or any child process) can actually export variables
 # back into the invoking shell's env by putting the command in ~/.sigusr1
 # and sending SIGUSR1 to the shell. That's why CLEARCASE_SHPID is here.
-$ENV{CLEARCASE_SHPID} = getppid if !$Win32;
+$ENV{CLEARCASE_SHPID} = getppid if $ARGV[0] ne 'setview' && !$Win32;
 
 $ENV{_CT_DEBUG} = 1 if $opt_debug;
 $opt_debug ||= $ENV{_CT_DEBUG};
@@ -254,7 +254,7 @@ if ($opt_noexec && !$Setuid) {
    System($ClearCmd, @ARGV);
    # The return code of the real cleartool cmd. No explicit exit in case
    # another perl process wants to 'require' ct instead of exec-ing it.
-   $?>>8;
+   $?>>=8;
 } else {
    if ($Setuid) {
       # Security considerations before exec-ing in setuid mode.

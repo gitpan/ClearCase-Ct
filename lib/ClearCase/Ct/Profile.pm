@@ -8,7 +8,7 @@ Profile.pm - site-wide customizations for I<ct> wrapper
 
 =head1 VERSION
 
-1.15
+1.17
 
 =head1 SYNOPSIS
 
@@ -114,7 +114,7 @@ are available via the standard B<-h> flag.
            * [-expand|-source|-branch|-vobs|-project|-promote]";
 
    $Help{checkin} .= "
-                  * [-dir|-rec|-all] [-iff] [-diff [diff-options]] [-revert]";
+                  * [-dir|-rec|-all] [-iff] [-diff [diff-opts]] [-revert]";
 
    $Help{checkout} .= "
                    * [-dir|-rec|-all]";
@@ -156,6 +156,8 @@ are available via the standard B<-h> flag.
    $Help{edattr} .= "Usage: *edattr object-selector ...";
 
    $Help{edcmnt} .= "Usage: *edcmnt [-new] object-selector ...";
+
+   $Help{grep} .= "Usage: *grep [grep-flags] pattern element";
 }
 
 ###################### End of Help Section #############################
@@ -471,8 +473,11 @@ Extended to implement a B<-diff> flag, which runs a B<I<ct diff -pred>>
 command before each checkin so the user can look at his/her changes
 before typing the comment.
 
-Also, automatically supplies -nc to checkins if the element list
+Also, automatically supplies C<-nc> to checkins if the element list
 consists of only directories (directories get a default comment).
+
+Implements a new B<-revert> flag. This causes identical (unchanged)
+elements to be unchecked-out instead of being checked in.
 
 Also extended to implement a B<-iff> flag. This reduces the supplied list
 of elements to those truly checked out. E.g. C<ct ct -iff *.c> will check
@@ -490,7 +495,7 @@ producing a lot of errors for the others.
 
       if (keys %AutoOpt) {
 	 # Extension: handle AutoOpt flags (parsed above).
-	 push(@ARGV, CheckedOutList(\@ARGV, @ci_flags));
+	 push(@ARGV, CheckedOutList(\@ARGV, @ci_flags, qw(revert)));
       } else {
 	 # Or: automatically glob explicit args (on Windows).
 	 @ARGV = DosGlob(\@ARGV, @ci_flags) if $Win32;
@@ -521,24 +526,24 @@ producing a lot of errors for the others.
 
       # Extension: -iff flag trims @ARGV to those really checked out.
       if ($opt_ci_iff) {
-	 my @files = RemainingOptions(\@ARGV,
-		     "cqe|nc|nwarn|cr|ptime|identical|rm", "c|cfile|from=s",
-		     "serial_format|diff_format|window", "context",
-		     "graphical|tiny|hstack|vstack|predecessor", "options=s");
-	 shift @files;
-	 my $flag_cnt = @ARGV - @files;
-	 my @selected = `$ClearCmd lsco -s @files 2>$DevNull`;
+	 my @elems = RemainingOptions(\@ARGV,
+		     qw(cqe|nc|nwarn|cr|ptime|identical|rm c|cfile|from=s
+			serial_format|diff_format|window context
+			graphical|tiny|hstack|vstack|predecessor options=s));
+	 shift @elems;
+	 my $flag_cnt = @ARGV - @elems;
+	 my @selected = `$ClearCmd lsco -s @elems 2>$DevNull`;
 	 if (!@selected) {
-	    `$ClearCmd lsco -s @files`;
+	    `$ClearCmd lsco -s @elems`; # just to repeat the error msg.
 	    warn "no elements selected\n" unless $?;
 	    exit $?>>8;
 	 }
 	 chomp @selected;
-	 splice(@ARGV, $flag_cnt, @files, @selected);
+	 splice(@ARGV, $flag_cnt, @elems, @selected);
       }
 
       # Extension: -d/iff flag runs 'cleartool diff' on each elem first
-      if ($opt_ci_diff) {
+      if ($opt_ci_diff || $opt_ci_revert) {
 	 my(@elems, @diff_args);
 	 {
 	    local (@ARGV) = @ARGV;	# operate on temp argv
@@ -553,7 +558,7 @@ producing a lot of errors for the others.
 		     "graphical|tiny|hstack|vstack|predecessor", "options=s");
 	    my $start = @ARGV - @elems;
 	    # The part of the argv before the element list must be diff-flags.
-	    @diff_args = @ARGV[0..$start-1] || ('-serial');
+	    @diff_args = @ARGV[0..$start-1] || qw(-serial);
 	 }
 	 # Strip diff options from argv since we've captured them elsewhere.
 	 StripOptions(\@ARGV, "serial_format|diff_format|window",
@@ -562,9 +567,14 @@ producing a lot of errors for the others.
 	 splice(@ARGV, @ARGV - @elems);
 	 if (@elems) {
 	    for $elem (@elems) {
-	       my $diff = System($Wrapper, qw(diff -pred), @diff_args, $elem);
-	       # If -revert and no diffs, uncheckout instead of checkin
-	       if ($opt_ci_revert && !$diff) {
+	       # If -revert and no changes, uncheckout instead of checkin
+	       my $chng;
+	       if ($opt_ci_diff) {
+		  $chng = System($Wrapper, qw(diff -pred), @diff_args, $elem);
+	       } else {
+		  $chng = System($Wrapper, qw(diff -pred), $elem, '>/dev/null');
+	       }
+	       if ($opt_ci_revert && !$chng) {
 		  System($ClearCmd, qw(unco -rm), $elem);
 	       } else {
 		  System($ClearCmd, @ARGV, $elem);
@@ -600,6 +610,9 @@ editor on all currently checked-out files.
 =cut
 
    if (/^co$|^checkout$|^edit$/) {
+      # Do the user a favor and handle globbing for DOS shell.
+      @ARGV = DosGlob(\@ARGV) if $Win32;
+
       # If the user tries to check out a symlink, replace it with
       # the path to the actual element. Don't know why CC doesn't
       # do this or at least provide a -L flag.
@@ -628,7 +641,7 @@ editor on all currently checked-out files.
 
 	 # Do the checkout.
 	 if (System($ClearCmd, 'co', @ARGV[1..$#ARGV])) {
-	    Prompt('text', '-pro', "[Hit return to continue]");
+	    exit $?>>8 if Prompt(qw(yes_no -mask y,n -pro), 'Continue?');
 	 }
 
 	 # Now we can strip all 'co' flags from ARGV; what's left
@@ -695,12 +708,14 @@ of all changes currently checked-out in your view with C<ct review -all>.
       if ($Opt{context}) {
 	 my $finalstat = 0;
 	 for my $elem (@elems) {
-	    my $pred = `$ClearCmd desc -short -pred $elem`;
+	    my $pred = qx($ClearCmd desc -short -pred $elem);
 	    chomp $pred;
 	    if (/^review$/) {
 	       open(STDOUT, "| pprint -t '$elem'") || Warn "$!";
 	    }
-	    my $rc = System('/usr/bin/diff', '-c', "$elem\@\@$pred", $elem);
+	    $elem =~ s/^"(.*)"$/$1/;
+	    $pred = "$elem\@\@$pred";
+	    my $rc = System('/usr/bin/diff', '-c', $pred, $elem);
 	    if ($rc>>8 > 1) {
 	       $finalstat = 2;
 	    } elsif ($rc>>8 == 1 && $finalstat < 2) {
@@ -824,7 +839,7 @@ doesn't support modification of attributes.
       for my $elem (@ARGV) {
 	 my %indata = ();
 	 #$elem .= '@@' unless $elem =~ /\@\@/;
-	 my @lines = `$ClearCmd desc -aattr -all $elem`; 
+	 my @lines = qx($ClearCmd desc -aattr -all $elem);
 	 if ($?) {
 	    $retstat++;
 	    next;
@@ -928,11 +943,12 @@ flag causes it to ignore the previous comment.
 	 my $edtmp = "$TmpDir/edcmnt.$$";
 	 open(EDTMP, ">$edtmp") || Die "$edtmp: $!";
 	 for (@input) {
+	    next if /^~\w$/;  # Hack - allow ~ escapes in ci-trigger a la mailx
 	    $csum_pre += unpack("%16C*", $_);
 	    print EDTMP $_;
 	 }
 	 close(EDTMP) || Die "$edtmp: $!";
-	 System($Editor, $edtmp) || 1; ## ignore $? - vi sometimes exits >0
+	 System($Editor, $edtmp) || 1;  ## ignore $? - vi sometimes exits >0
 	 open(EDTMP, $edtmp) || Die "$edtmp: $!";
 	 while (<EDTMP>) { $csum_post += unpack("%16C*", $_); }
 	 close(EDTMP) || Die "$edtmp: $!";
@@ -950,8 +966,8 @@ flag causes it to ignore the previous comment.
 
 New convenience command. Conceptually this is just a shorthand for
 B<"rm -i `ct lsp`">, but it also handles convenience features such as the
-rm-like B<-f> flag plus B<-dir/-rec/-all>.  It has the benefit of
-behaving the same way on NT as well.
+rm-like B<-f> flag plus B<-dir/-rec/-all>.  It also has the benefit of
+behaving the same way on NT, which rm doesn't.
 
 =cut
 
@@ -960,8 +976,8 @@ behaving the same way on NT as well.
       GetOptions("i" => \$opt_i, "f" => \$opt_f);
       for my $inode (reverse PrivateList(qw(-other -do))) {
 	 if ($opt_i || ! $opt_f) {
-	    $_ = Prompt(qw(text -pro), "$ARGV[0]: remove '$inode' (yes/no)? ");
-	    next unless /y/i;
+	    next if Prompt(qw(yes_no -mask y,n -def n -pro),
+				 "$ARGV[0]: remove '$inode'? ");
 	 }
 	 if (-d $inode) {
 	    rmdir $inode || Warn "$inode: $!\n";
@@ -991,6 +1007,22 @@ results of B<find> to a B<describe -fmt>.
 	       /usr/bin/xargs $ClearCmd desc -fmt '$opt_fmt'");
       }
       last COMMAND;
+   }
+
+=item * GREP
+
+New command. Greps all past revisions of a file for a pattern, so you
+see which revision introduced a particular function or which introduced
+a particular bug.  Suggested by Seth Alford <setha@plaza.ds.adp.com>.
+
+=cut
+
+   if (/^grep$/) {
+      my $file = pop(@ARGV);
+      chomp(my @versions = map { s/@@.*CHECKEDOUT$//; $_ }
+				    Qx($ClearCmd, qw(lsvt -a -s), $file));
+      Exec(@ARGV, @versions);
+      exit 0;
    }
 
 =item * LS
@@ -1272,7 +1304,8 @@ spec. The B<I<ct synccs>> command can be used to resync.
       # local naming convention, or if the storage location is not
       # one of the approved areas.
       # Extension: if no view-storage area specified, use a standard one.
-      my($opt_tag, $stg, $opt_profile, @opt_backing, @backers, $new_spec);
+      my($opt_tag, $opt_tco, $opt_profile, @opt_backing);
+      my($stg, $new_spec, @backers);
       GetOptions("backing=s@" => \@opt_backing, "profile=s" => \$opt_profile);
       Warn "$ARGV[0]: -backing flag conflicts with -profile\n"
 	    if @opt_backing && $opt_profile;
@@ -1309,14 +1342,16 @@ EOCS
 
       TEMP_ARGV: {
 	 local(@ARGV) = @ARGV;	# operate on temp argv
-	 StripOptions(\@ARGV, "tcomment|tmode|region|ln|host|hpath|gpath=s",
+	 StripOptions(\@ARGV, "tmode|region|ln|host|hpath|gpath=s",
 		    "ncaexported", "cachesize=s",
 	 );
-	 GetOptions("tag=s" => \$opt_tag);
+	 GetOptions("tag=s" => \$opt_tag, "tcomment=s" => \$opt_tco);
 	 if ($opt_tag && ($#ARGV == 0) && defined $ViewStgRoot) {
 	    $stg = "$ViewStgRoot/$ENV{LOGNAME}/$opt_tag.vws";
 	 }
       }
+      push(@ARGV, '-tco', "Created by $ENV{LOGNAME} on " . localtime)
+								  if !$opt_tco;
       push(@ARGV, $stg) if $stg;
       if ($opt_tag) {
 	 if ($VobAdm && ($ENV{LOGNAME} ne $VobAdm)) {
@@ -1462,6 +1497,7 @@ Extended to support the B<-me> flag (prepends E<lt>B<username>E<gt>_* to tag).
       GetOptions("me" => \$opt_setview_me);
       $ARGV[-1] = join('_', $ENV{LOGNAME}, $ARGV[-1])
 	    if ($opt_setview_me && $ARGV[-1] !~ /^$ENV{LOGNAME}/);
+      delete $ENV{CLEARCASE_SHPID}; # hack - see cleartool.plx
       last COMMAND;
    }
 

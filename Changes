@@ -72,8 +72,16 @@ Revision history for Perl extension ClearCase::Ct.
 1.14  Tue Feb 16 16:52:06 EST 1999
 	- fixed NT cmd.exe porting problem with fastcwd()
 
-1.15 Wed Mar 10 23:33:22 EST 1999
+1.15 Wed Mar 24 13:33:22 EST 1999
 	- Added automatic globbing on Win32 systems.
 	- Fixed --verbose output to show full cmd name.
 	- Fixed a number of bugs relating to filenames containing
 	  whitespace (mostly on Windows).
+
+1.16 Wed Mar 24 16:47:15 EST 1999
+	- Added 'grep' command
+
+
+1.17 Tue Jun  1 12:46:32 EDT 1999
+	- Packaging various minor tweaks and bugfixes.
+	- Updated prompt() function.

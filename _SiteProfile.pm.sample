@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl	# for file(1) only, not executable as is
+#!perl	# for file(1) only, not executable as is
 
 $VERSION = '1.00';
 

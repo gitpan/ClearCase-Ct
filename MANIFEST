@@ -8,4 +8,5 @@ Readme.html
 lib/ClearCase/Ct/Profile.pm
 cleartool.plx
 test.pl
-SiteProfile.pm.sample
+_Profile.pm.sample
+_SiteProfile.pm.sample

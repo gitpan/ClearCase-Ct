@@ -37,7 +37,7 @@ Profile.pm - site-wide customizations for <EM>ct</EM> wrapper
 <H1><A NAME="VERSION">VERSION
 
 </A></H1>
-1.15
+1.17
 
 
 <P>
@@ -163,8 +163,14 @@ typing the comment.
 
 <P>
 
-Also, automatically supplies -nc to checkins if the element list consists
-of only directories (directories get a default comment).
+Also, automatically supplies <CODE>-nc</CODE> to checkins if the element list consists of only directories (directories
+get a default comment).
+
+
+<P>
+
+Implements a new <STRONG>-revert</STRONG> flag. This causes identical (unchanged) elements to be unchecked-out
+instead of being checked in.
 
 
 <P>
@@ -301,7 +307,7 @@ flag causes it to ignore the previous comment.
 
 </A></STRONG>
 New convenience command. Conceptually this is just a shorthand for
-<STRONG>"rm -i `ct lsp`"</STRONG>, but it also handles convenience features such as the rm-like <STRONG>-f</STRONG> flag plus <STRONG>-dir/-rec/-all</STRONG>. It has the benefit of behaving the same way on NT as well.
+<STRONG>"rm -i `ct lsp`"</STRONG>, but it also handles convenience features such as the rm-like <STRONG>-f</STRONG> flag plus <STRONG>-dir/-rec/-all</STRONG>. It also has the benefit of behaving the same way on NT, which rm doesn't.
 
 
 <P>
@@ -311,6 +317,17 @@ New convenience command. Conceptually this is just a shorthand for
 </A></STRONG>
 Extended to simulate the -fmt option. This is done by sending the results
 of <STRONG>find</STRONG> to a <STRONG>describe -fmt</STRONG>.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_GREP">GREP
+
+</A></STRONG>
+New command. Greps all past revisions of a file for a pattern, so you see
+which revision introduced a particular function or which introduced a
+particular bug. Suggested by Seth Alford <A
+HREF="MAILTO:<setha@plaza.ds.adp.com>."><setha@plaza.ds.adp.com>.</A>
 
 
 <P>

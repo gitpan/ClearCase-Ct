@@ -11,6 +11,12 @@ See also "perldoc ClearCase::Ct::Profile" and "perldoc `whence ct`".
 ClearCase::Ct provides service functions and global constants to
 the C<ct> wrapper program and the ClearCase::Ct::Profile module.
 
+=head1 COPYRIGHT
+
+Copyright (c) 1997,1998,1999 David Boyce (dsb@world.std.com). All rights
+reserved.  This perl program is free software; you may redistribute it
+and/or modify it under the same terms as Perl itself.
+
 =head1 DESCRIPTION
 
 Exported functions:
@@ -22,7 +28,7 @@ use vars qw($VERSION @ISA @EXPORT_OK %EXPORT_TAGS);
 require Exporter;
 
 @ISA = qw(Exporter);
-$VERSION = '1.15';
+$VERSION = '1.17';
 
 use strict;
 
@@ -61,8 +67,12 @@ $Editor = $ENV{WINEDITOR} || $ENV{VISUAL} || $ENV{EDITOR} ||
 	    ($Win32 ? 'notepad' : 'vi');
 
 # Figure out the best place to put temp files.
-$TmpDir = $ENV{TMPDIR} || $ENV{TEMP} || $ENV{TMP} ||
-	    ($Win32 ? '/winnt/temp' : '/tmp');
+$TmpDir = $Win32 ?
+	    ($ENV{TEMP} || $ENV{TMP} || 'C:/winnt/temp') :
+	    ($ENV{TMPDIR} || '/tmp');
+# This depends on having such a program or script, which basically
+# just re-execs 'xterm -e vi "$@"'.
+$Editor = 'xvi' if !$Win32 && $ENV{ATRIA_FORCE_GUI} && $Editor =~ /\w*vi\w*$/;
 
 # Adjust $0 to make sure it represents a fully-qualified path.
 $0 = join('/', $ENV{PWD} || fastcwd(), $0) if $0 !~ m%^[/\\]|^[a-z]:\\%i;
@@ -79,7 +89,13 @@ $Setuid = ($< != $>) unless $Win32;
 # Set up the hash %Vgra as a reverse lookup into @ARGV for
 # ease in checking whether a given option was used.
 %Vgra = ();
-for (0..$#ARGV) { $Vgra{$ARGV[$_]} = $_ }
+for (0..$#ARGV) {
+   # Hack - while here, we add an extra set of quotes to any comment
+   # passed in with -c on Windows; -c is such a ubiquitous flag 
+   # that we might as well deal with it in one (hacked) place.
+   $ARGV[$_+1] = qq("$ARGV[$_+1]") if $ARGV[$_] eq '-c';
+   $Vgra{$ARGV[$_]} = $_;
+}
 
 # Make our best guess at where the clearcase executables are installed.
 $CCHome = $ENV{ATRIAHOME} || ($Win32 ? 'C:/atria' : '/usr/atria');
@@ -93,6 +109,7 @@ $ClearCmd = "$CCHome/bin/wrapped/cleartool"
 # We use $ClearCmd instead of 'cleartool' to allow for the
 # possibility of extending this wrapper to other programs.
 $ClearCmd ||= "$CCHome/bin/cleartool";
+$ClearCmd = 'cleartool' if ! -f $ClearCmd;
 
 # This supports the ability to run, for example, "lsvtree" as a shortcut
 # for "ct lsvtree" if there's a link by that name.
@@ -152,6 +169,7 @@ sub Exec
       system(@_);
       exit $?;
    } else {
+      $^W = 0;
       exec(@_);
       # if caller checks for return, respect that decision
       Die "$_[0]: $!" unless defined wantarray;
@@ -161,14 +179,35 @@ sub Exec
 =item * System(LIST)
 
 A wrapper for system() which handles printing of debug tracing.
-Dies automatically on command failure in void context.
+Dies automatically on command failure in void context. For easier
+portability between Unix and Windows, this version supports literal
+'>/dev/null' and '2>/dev/null' argument B<in list mode>.
 
 =cut
 
 sub System
 {
-   Dbg("system: @_", 1);
-   my $rc = system(@_) & 0xffff;
+   my @cmd   = grep !m%/dev/null$%, @_;
+   my @nulls = grep  m%/dev/null$%, @_;
+   my $rc;
+   Dbg("system: @cmd", 1);
+   for (@nulls) {
+      if (/^2/) {
+	 open(SAVE_STDERR, ">&STDERR") || warn "STDERR: $!";
+	 close(STDERR);
+      } else {
+	 open(SAVE_STDOUT, ">&STDOUT") || warn "STDOUT: $!";
+	 close(STDOUT);
+      }
+   }
+   $rc = system(@cmd) & 0xffff;
+   for (@nulls) {
+      if (/^2/) {
+	 open(STDERR, ">&SAVE_STDERR") || warn "STDERR: $!";
+      } else {
+	 open(STDOUT, ">&SAVE_STDOUT") || warn "STDOUT: $!";
+      }
+   }
    if (defined wantarray) {
       return $rc;
    } else {
@@ -180,7 +219,7 @@ sub System
 
 A replacement for `cmd` with no shell needed, as suggested in Camel5.
 Also more secure in setuid usage. Made available here for use in
-profiles.
+profiles. On NT this is just a synonym for qx() since no fork().
 
 =cut
 
@@ -205,27 +244,65 @@ sub Qx
 =item * Prompt(LIST)
 
 Run clearprompt with specified args and return results.  Temp file
-creation/removal is handled here automatically.  NOTE: the -prompt
-<string> argument must come last so we can quote it appropriately to
-deal with the remarkably lame NT shell.
+creation/removal is handled here automatically.  Parameters are the
+same as the args for the clearprompt command except that no -out flag
+is needed.
 
 =cut
 
+# NOTE: THIS IS A COPY of the function in ClearCase::Msg. At some future
+# time we should simply 'use' that module and get it that way.
 sub Prompt
 {
-   my @cmd = @_;
-   my $tmpf = "$TmpDir/clearprompt.$$";
-   my $cpt = join('/', $CCHome, 'bin', 'clearprompt');
-   # Hack the quoting of the -prompt arg for NT.
-   $cmd[-1] = "\"$cmd[-1]\"" if $Win32;
-   push(@cmd, '-out', $tmpf);
-   system($cpt, @cmd) && exit($?>>8);
-   open(TMPF, $tmpf) || die "$tmpf: $!";
-   local($/) = undef;
-   my $response = <TMPF>;
-   close(TMPF);
-   unlink $tmpf;
-   return $response;
+   my $mode = shift;
+   my @args = @_;
+
+   # Aid in finding clearprompt.
+   my $ccd = $ENV{ATRIAHOME} || ($^O =~ /win32/i ? 'C:/atria' : '/usr/atria');
+   my $cpt = -d $ccd ? join('/', $ccd, 'bin', 'clearprompt') : 'clearprompt';
+
+   # On Windows we must add an extra level of escaping to the prompt string
+   # since all forms of system() appear to go through the ^#$& cmd shell!
+   if ($^O =~ /win32/i) {
+      for my $i (0..$#args) {
+	 if ($args[$i] =~ /^-pro/) {
+	    $args[$i+1] =~ s/"/'/gs;
+	    $args[$i+1] = qq("$args[$i+1]");
+	    last;
+	 }
+      }
+   }
+
+   # For clearprompt modes in which we get textual data back via a file,
+   # derive here a reasonable temp-file name and handle the details
+   # of reading data back out of it and unlinking it when done.
+   # For other modes, just fire off the cmd and return the status.
+   # In a void context, don't wait for the button to be pushed; just
+   # fork and proceed asynchonously, since this is presumably just an
+   # informational message.
+   if ($mode =~ /text|file|list/) {
+      my $outf = "$TmpDir/clearprompt.$$.$mode";
+      system($cpt, $mode, '-out', $outf, @args) && die "$cpt: $!";
+      open(OUTFILE, $outf) || die "$outf: $!";
+      local $/ = undef;
+      my $data = <OUTFILE>;
+      close(OUTFILE);
+      unlink $outf;
+      return $data;
+   } else {
+      # Never proceed asynchronously in a command-line env ...
+      if (defined wantarray || !$ENV{ATRIA_FORCE_GUI}) {
+	 system($cpt, $mode, @args);
+	 return $?>>8;
+      } else {
+	 if ($^O =~ /win32/i) {
+	    system(1, $cpt, $mode, @args);
+	 } else {
+	    return if fork;
+	    exec($cpt, $mode, @args);
+	 }
+      }
+   }
 }
 
 =item * DosGlob(LIST)

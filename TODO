@@ -10,3 +10,5 @@
    'ct mkview -snapshot' and 'ct update') through this interface.
    Presumably there are Perl solutions out there now to implement some
    variant of snapshot views; if I can get hold of one I might wire it in.
+
+=> Rewrite based on a Getopt::Argv type of object?

@@ -1,0 +1,177 @@
+#!/usr/local/bin/perl	# for doc purposes only, not executable as is
+
+### As delivered, this is a stub Profile.pm which defines one new
+### cleartool pseudo-command "ct grep". It uses this command to
+### demonstrate how to define or modify a cleartool command, add
+### it to the help message, add it to the 'ct man profile' page, etc.
+
+=head1 NAME
+
+Profile.pm - site-wide customizations for I<ct> wrapper
+
+=head1 VERSION
+
+=head1 SYNOPSIS
+
+This perl module functions as a
+wrapper for B<cleartool>, allowing the command-line interface of
+B<cleartool> to be extended or modified. It allows defaults to be
+changed, new flags to be added to existing B<cleartool> commands, or
+entirely new B<cleartool> commands to be synthesized.
+
+Unfortunately, there's no equivalent mechanism for wrapping GUI access
+to clearcase.
+
+=head1 SUMMARY
+
+Here's a quick overview of the extensions available via B<I<ct>> which
+may be of interest to users:
+
+=head1 DESCRIPTION
+
+=cut
+
+########################################################################
+# Notes for Developers:
+# This file is in two sections.  The first section simply adds help
+# data for the commands modified/defined in the second section; it's
+# placed first both for self-documentation reasons and so we can return
+# before reaching the command section when in help mode.
+
+# The help section is where extensions are documented.  Assigning string
+# data to $Help{command} will cause the new string to be printed after
+# the "real" help output, if any, for that cmd.  If you're adding a whole
+# new cmd, there will be no "real" output so you can provide the entire
+# help msg here. By convention, new flags are marked with a (*).
+
+# The command section is in the form of a series of blocks, one
+# for each command name we want to recognize and modify. In a few
+# complex cases there may even be multiple different blocks for a
+# command but generally this is not necessary. Typically each
+# block ends with a 'last COMMAND' for performance reasons (to
+# keep perl from having to examine the remaining blocks for a
+# nonexistent match.
+
+# The command section also defines some useful subroutines and
+# global data at the top.
+
+# Sorry, this file is not too well documented and not to everyone's
+# taste stylistically. The good news is that most of the code blocks
+# are completely standalone so it's not too hard to figure out what
+# they do once you understand that. Think of them as subroutines; they
+# have @_ set upon entry (as well as $_ set to the command name).
+########################################################################
+
+######################### Help Section #################################
+
+# We always want to traverse this block, even if help is not being
+# requested, in order to have a full record of the usage msgs so a
+# pseudo-command can print it on error. The keys below must be the
+# real name of the cmd, not an abbreviation!
+{
+   $Help{grep} .= "Usage: *grep [grep-flags] pattern element";
+}
+
+###################### End of Help Section #############################
+
+####################### Command Section ################################
+
+warn "No SiteProfile found!\n" if !grep /SiteProfile/, keys %INC;
+
+use subs qw(Die Warn);	# keeps perl -c happy
+
+# Override the user's preferences while interacting with clearcase.
+umask 002;
+
+# Format: Each block below represents a command name which can
+# follow 'cleartool'. These may be existing commands whose
+# default behavior we want to modify or supplement, or they may
+# be meta-commands which are implemented entirely in the wrapper.
+# The intent is that we should enter exactly one or none of these
+# blocks, not counting a global arg-parsing block or two at the top.
+# These blocks are documented "in the large" via pod blocks, with
+# smaller local comments where B<absolutely> necessary :-)
+
+COMMAND: {
+
+   # No need to parse all the remaining code if only help msg was wanted.
+   last COMMAND if /^help$/ || $Cmd_Help;
+
+# Begin embedded pods
+
+=over 4
+
+=item * GREP
+
+New command. Greps all past revisions of a file for a pattern, so you
+see which revision introduced a particular function or which introduced
+a particular bug.  Suggested by Seth Alford <setha@plaza.ds.adp.com>.
+
+=cut
+
+   if (/^grep$/) {
+      my $file = pop(@ARGV);
+      chomp(my @versions = Qx($ClearCmd, qw(lsvt -a -s), $file));
+      Exec(@ARGV, @versions);
+      exit 0;
+   }
+
+
+}
+
+###################### End of Command Section ##########################
+
+# Always return explicit truth at the end of require'd files.
+1;
+
+__END__
+
+=back
+
+=head1 FURTHER CUSTOMIZATION
+
+Working on a profile is actually quite easy if you remember that within
+it B<$_> is set to the command name, B<@ARGV> is the complete command
+line and B<@_> is a copy of it, B<$0> is the path to the wrapper, and
+B<$ClearCmd> is the path to the real I<cleartool> program.  Also, the
+hash B<%Vgra> is a reverse lookup such that C<I<$ARGV[$Vgra{xyz}] eq "xyz">>.
+
+With most perl modules, the C<.pm> code itself (the part that gets
+found via C<@INC>) is static - it's not generally modified except via
+updates of the module. Meanwhile, users write code to use the module
+and that code is fluid; they change it as they please.  This module is
+backwards from that since the I<ct> program is policy-free and thus
+shouldn't need to be changed significantly.  Meanwhile, the
+B<Profile.pm> is intended to be a reflection of the local policies and
+preferences; the provided B<Profile.pm> is simply a sample of what
+can be done.
+
+The B<Profile.pm> does B<not> establish a separate namespace; it operates
+within C<main::>. There did not seem to be any good reason to do so,
+since the whole point is to operate directly on the namespace provided
+by the client program I<ct>.
+
+The I<ct> program is normally expected to be used under that name,
+which means that users running B<cleartool lsco>, for instance, will go
+around the wrapper.  However, it's also designed to allow for complete
+wrapping if desired. To do so, move C<$ATRIAHOME/bin/cleartool> to
+C<$ATRIAHOME/bin/wrapped/cleartool> and install I<ct> as
+C<$ATRIAHOME/bin/cleartool>. You can continue to install/link the wrapper
+as I<ct> as well - it won't invoke the wrapper twice because it
+contains code to detect the presence of the moved-aside binary and run
+it.
+
+As a safety mechanism, the C<require>-ing of the profile is handled
+within an C<eval> block, so a syntax error or config problem in the
+profile won't cause it to fail.  It will simply print a warning and
+continue.
+
+=head1 AUTHOR
+
+David Boyce, dsb@world.std.com
+
+=head1 SEE ALSO
+
+cleartool(1), perl(1).
+
+=cut
