@@ -116,6 +116,16 @@ use ClearCase::Ct qw(:all);
 
 use strict;
 
+# We export this to be the pid (presumably) of the shell process which
+# invoked us. Can be handy in triggers where we're a few processes
+# removed from the originating shell.  By analogy with CLEARCASE_PPID.
+# E.g. if the following trap is set in the ksh:
+#   trap 'if [[ -r ~/.sigusr1 ]]; then . ~/.sigusr1 && rm ~/.sigusr1; fi' USR1
+# then a trigger (or any child process) can actually export variables
+# back into the invoking shell's env by putting the command in ~/.sigusr1
+# and sending SIGUSR1 to the shell. That's why CLEARCASE_SHPID is here.
+$ENV{CLEARCASE_SHPID} = getppid;
+
 $ENV{_CT_DEBUG} = 1 if $opt_debug;
 $opt_debug ||= $ENV{_CT_DEBUG};
 
@@ -146,7 +156,6 @@ if ($ARGV[0] eq 'setview') {
 sub Require
 {
    my $profile = shift;
-   # Set up the reverse hash pointing back into @ARGV;
    local($_) = $_[0];
    # Use eval so syntax errors etc won't cause disastrous failures.
    eval {

@@ -50,12 +50,21 @@ Revision history for Perl extension ClearCase::Ct.
 
 1.09  Thu Oct 15 14:42:20 EDT 1998
 	- simplified - remove PostOpEvalStack code.
-	  This can be more easily handled by completely
+	  The same thing can be more easily handled by completely
 	  wrapping the native command within Profile.pm.
 
 1.10  Fri Oct 16 19:22:25 EDT 1998
-	- broken - don't use
+	- BROKEN - don't use
 
 1.11  Mon Oct 19 12:57:48 EDT 1998
 	- fixed bug introduced in 1.10 by misguided cleanup
 	  (in mkview, resulting in null config spec)
+	- added 'ct eclipse ...' command inspired by cciug discussion
+	- added 'ct ci -iff' flag (discards non-checked-out elems)
+
+1.12  Tue Oct 20 16:27:22 EDT 1998
+	- added 'ct co -dir|-rec|-all' by request, even though
+	  checking out everything is not often a good plan IMHO.
+
+1.13  Wed Jan 13 20:54:50 EST 1999
+	- fixed bug resulting in "ct diff -pred -pred <file>"

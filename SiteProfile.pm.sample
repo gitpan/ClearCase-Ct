@@ -1,5 +1,7 @@
 #!/usr/local/bin/perl	# for file(1) only, not executable as is
 
+$VERSION = '1.00';
+
 # Where we keep the (NT-based) view profiles.
 local $ProfileStgRoot = '/net/vobsvr1/vbstore/ClearCase View Profiles';
 

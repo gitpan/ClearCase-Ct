@@ -4,11 +4,11 @@
 
 =head1 NAME
 
-Profile.pm - site-wide customizations for B<ct> wrapper
+Profile.pm - site-wide customizations for I<ct> wrapper
 
 =head1 VERSION
 
-1.11
+1.13
 
 =head1 SYNOPSIS
 
@@ -23,23 +23,23 @@ to clearcase.
 
 =head1 SUMMARY
 
-Here's a quick overview of the extensions available via B<ct> which may
-be of interest to users:
+Here's a quick overview of the extensions available via B<I<ct>> which
+may be of interest to users:
 
 Many I<cleartool> commands have been enhanced to simulate the standard
 flags B<-dir>, B<-rec>, and B<-all>, which cause the command to operate
 on (respectively) all eligible elements in the current dir, the current
 dir recursively, and the current vob. The enhanced commands include
 B<checkin/ci>, B<unco>, B<diff>, B<mkelem>, and B<lsprivate>.  Thus you
-can check in all your current checkouts with B<ct ci -all> or see the
-view-private files in and under the current dir with B<ct lsprivate
--rec>. You can convert a tree of view-private data into elements with
-B<ct mkelem -rec -ci>.
+can check in all your current checkouts with B<I<ct ci -all>> or see the
+view-private files in and under the current dir with B<I<ct lsprivate
+-rec>>. You can convert a tree of view-private data into elements with
+B<I<ct mkelem -rec -ci>>.
 
-The B<ct checkin> command is also enhanced to take a B<-diff> flag which
+The B<I<ct checkin>> command is also enhanced to take a B<-diff> flag which
 prints your changes to the screen before prompting for a comment.
 
-A new command B<ct edit> is added. This is the same as B<ct checkout>
+A new command B<I<ct edit>> is added. This is the same as B<I<ct checkout>>
 but execs your favorite editor after checking out. It also takes a
 B<-ci> flag which will check the file in afterwards.
 
@@ -47,20 +47,20 @@ All commands which take a B<-tag I<view-tag>> option are enhanced to
 recognize the B<-me> flag.  This modifies the effect of B<-tag> by
 prepending your username to the view name. E.g.  B<-tag I<foo> -me> is a
 shorthand for B<-tag I<E<lt>usernameE<gt>_foo>>.  Similarly,
-B<ct lsview -me> will show only views whose names match the pattern
+B<I<ct lsview -me>> will show only views whose names match the pattern
 I<E<lt>B<username>E<gt>_*>.
 
-The B<ct mkview> command is enhanced to default the view-storage
+The B<I<ct mkview>> command is enhanced to default the view-storage
 location to a standard place using a standard naming convention.  See
 I<SiteProfile.pm.sample> for how this is set up.  Also, B<mkview>
 recognizes the B<-me> flag as described above. This means that making a
-new view can/should be done as B<ct mkview -tag foo -me>.
+new view can/should be done as B<I<ct mkview -tag foo -me>>.
 
-New pseudo-commands B<ct edattr> and B<ct edcmnt> are added. These
+New pseudo-commands B<I<ct edattr>> and B<I<ct edcmnt>> are added. These
 make it easy to edit the attributes and comments, respectively, of
 a particular version.
 
-A new command B<ct rmpriv> is added, which behaves like
+A new command B<I<ct rmpriv>> is added, which behaves like
 C<B<rm -i `ct lsprivate -rec`>>, though B<-dir> or B<-all> may be
 substituted for B<-rec> and B<-f> may be passed to override B<-i>.
 
@@ -116,6 +116,9 @@ are available via the standard B<-h> flag.
    $Help{checkin} .= "
                   * [-dir|-rec|-all] [-iff] [-diff [diff-options]] [-revert]";
 
+   $Help{checkout} .= "
+                   * [-dir|-rec|-all]";
+
    $Help{diff} .= "
           * [-c] [-dir|-rec|-all]";
 
@@ -146,6 +149,10 @@ are available via the standard B<-h> flag.
 
    $Help{eclipse} .= "Usage: *eclipse element ...";
 
+   $Help{citree} .= "Usage: *citree [-a] [-m] [-n] [-r] [-t] [-v]
+               [-c <comment>] [-l <LABEL>] [-f <list-file>]
+               <source> <destination>>";
+
    $Help{edattr} .= "Usage: *edattr object-selector ...";
 
    $Help{edcmnt} .= "Usage: *edcmnt [-new] object-selector ...";
@@ -154,6 +161,8 @@ are available via the standard B<-h> flag.
 ###################### End of Help Section #############################
 
 ####################### Command Section ################################
+
+warn "No SiteProfile found!\n" if !grep /SiteProfile/, keys %INC;
 
 use subs qw(Die Warn);	# keeps perl -c happy
 
@@ -168,9 +177,6 @@ use autouse 'File::Copy' => qw(copy move);
 
 # Assume that all vobs are owned by a single pseudo-user of this name:
 my $VobAdm = 'vobadm';
-
-# General-purpose accumulator for CT options.
-my %Opt;
 
 # Examines current ARGV, returns the specified or current view tag.
 sub ViewTag
@@ -187,7 +193,7 @@ sub ViewStorage
 {
    my($tag) = @_;
    my $vws;
-   my @lsview = Backtick($0, 'lsview', $tag);
+   my @lsview = Qx($0, 'lsview', $tag);
    chomp @lsview;
    if ($lsview[0] =~ m%.*\s(\S*)%) { $vws = $1; }
    return $vws;
@@ -232,59 +238,96 @@ COMMAND: {
       if (keys %AutoOpt > 1) {
 	 my @temp = join(' -', keys %AutoOpt);
 	 die "conflicting flags:  -@temp\n";
-      }
+      } elsif (keys %AutoOpt == 1) {
 
-      # Anonymous local sub to print out the set of elements we
-      # derived as 'eligible'.
-      my $showfound = sub {
-	 if (@_ == 0) {
-	    warn "$ARGV[0]: no eligible elements found\n";
-	    exit 0;
-	 } elsif (@_ <= 10) {
-	    warn "$ARGV[0]: found: @_\n";
-	 } elsif (@_) {
-	    my $i = @_ - 4;
-	    warn "$ARGV[0]: found: @_[0..3] [plus $i more] ...\n";
-	 }
-      };
+	 # Anonymous local sub to print out the set of elements we
+	 # derived as 'eligible', whatever that means for that op.
+	 my $showfound = sub {
+	    if (@_ == 0) {
+	       warn "$ARGV[0]: no eligible elements found\n";
+	       exit 0;
+	    } elsif (@_ <= 10) {
+	       warn "$ARGV[0]: found: @_\n";
+	    } elsif (@_) {
+	       my $i = @_ - 4;
+	       warn "$ARGV[0]: found: @_[0..3] [plus $i more] ...\n";
+	    }
+	 };
 
-      # Return the list of checked-out elements according to
-      # the -dir/-rec/-all flags. Takes a ref to an ARGV plus
-      # a list of flags to strip from it before running lsco.
-      sub CheckedOutList {
-	 my $r_argv = shift;
-	 my @t_argv = RemainingOptions($r_argv, @_);
-	 my @new_elems;
-	 # Get rid of the cmd name.
-	 shift @t_argv;
-	 # The FAQ says this is slow but it's a very small array ...
-	 unshift(@t_argv, '-cvi') unless grep /^-cvi/, @t_argv;
-	 unshift(@t_argv, '-s') unless grep /^-s/, @t_argv;
-	 if ($AutoOpt{all}) {
-	    @new_elems = Backtick($0, 'lsco', '-all', @t_argv);
-	 } elsif ($AutoOpt{recurse}) {
-	    @new_elems = Backtick($0, 'lsco', '-r', @t_argv);
-	 } elsif ($AutoOpt{directory}) {
-	    @new_elems = Backtick($0, 'lsco', @t_argv);
+	 # Return the list of checked-out elements according to
+	 # the -dir/-rec/-all flags. Takes a ref to an ARGV plus
+	 # a list of flags to strip from it before running lsco.
+	 sub CheckedOutList {
+	    my $r_argv = shift;
+	    my @t_argv = RemainingOptions($r_argv, @_);
+	    my @new_elems;
+	    # Get rid of the cmd name.
+	    shift @t_argv;
+	    # The FAQ says this is slow but it's a very small array ...
+	    unshift(@t_argv, '-cvi') unless grep /^-cvi/, @t_argv;
+	    unshift(@t_argv, '-s') unless grep /^-s/, @t_argv;
+	    if ($AutoOpt{all}) {
+	       @new_elems = Qx($0, qw(lsco -all), @t_argv);
+	    } elsif ($AutoOpt{recurse}) {
+	       @new_elems = Qx($0, qw(lsco -r), @t_argv);
+	    } elsif ($AutoOpt{directory}) {
+	       @new_elems = Qx($0, qw(lsco), @t_argv);
+	    }
+	    chomp @new_elems;
+	    &$showfound(@new_elems);
+	    return @new_elems;
 	 }
-	 chomp @new_elems;
-	 &$showfound(@new_elems);
-	 return @new_elems;
-      }
 
-      sub PrivateList {
-	 my @cmd = ($0, 'lsp', '-s', @_);
-	 if ($AutoOpt{all}) {
-	    push(@cmd, '-all');
-	 } elsif ($AutoOpt{recurse}) {
-	    push(@cmd, '-rec');
-	 } elsif ($AutoOpt{directory}) {
-	    push(@cmd, '-dir');
+	 # Return a list of non-checked-out files according to
+	 # the -dir/-rec/-all flags. Ignores all arguments.
+	 sub CheckedInList {
+	    my @checkedin, %checkedout;
+
+	    # Basically what we're doing below is using 'ct find' to
+	    # derive the list of elements, then 'ct lsco' to find those
+	    # already checked out, and subtract the 2nd list from the 1st
+	    # (but there are subtle differences in each of the 3 cases).
+	    # Done this way because there's no direct way to derive the
+	    # list of elements _not_ checked out.
+	    if ($AutoOpt{all}) {
+	       %checkedout = map {$_, $_}
+		  Qx($ClearCmd, qw(lsco -cview -s -all));
+	       @checkedin = grep !$checkedout{$_},
+		  Qx($ClearCmd, qw(find -all -type f -cvi -nxn -print));
+	    } elsif ($AutoOpt{recurse}) {
+	       %checkedout = map {s%^.[/\\]%%; $_, $_}
+		  Qx($ClearCmd, qw(lsco -cview -s -r));
+	       @checkedin = grep !$checkedout{$_},
+		  map {s%^.[/\\]%%; $_}
+		     Qx($ClearCmd, qw(find . -type f -cvi -nxn -print));
+	    } elsif ($AutoOpt{directory}) {
+	       %checkedout = map {$_, $_}
+		  Qx($ClearCmd, qw(lsco -cview -s));
+	       @checkedin = grep !$checkedout{$_},
+		  grep !m%[/\\]%,
+		     map {substr($_, 2)}
+			Qx($ClearCmd, qw(find . -type f -cvi -nxn -print));
+	    }
+	    chomp @checkedin;
+	    &$showfound(@checkedin);
+	    return @checkedin;
 	 }
-	 my @new_elems = Backtick(@cmd, '--reread');
-	 chomp @new_elems;
-	 &$showfound(@new_elems);
-	 return @new_elems;
+
+	 sub PrivateList {
+	    my @cmd = ($0, 'lsp', '-s', @_);
+	    if ($AutoOpt{all}) {
+	       push(@cmd, '-all');
+	    } elsif ($AutoOpt{recurse}) {
+	       push(@cmd, '-rec');
+	    } elsif ($AutoOpt{directory}) {
+	       push(@cmd, '-dir');
+	    }
+	    my @new_elems = Qx(@cmd, '--reread');
+	    chomp @new_elems;
+	    &$showfound(@new_elems);
+	    return @new_elems;
+	 }
+
       }
 
       ## No 'last COMMAND' here; it's just an initializer block
@@ -296,51 +339,61 @@ COMMAND: {
 
 =item * CATCS
 
-Lots of enhancements here, mostly in the area of config-spec parsing
-for automation:
-
-=over 4
-
-=item 1. New B<-expand> flag
-
-This follows all include statements recursively in order to print a
-complete config spec.
-
-=item 2. New B<-source> flag
-
-Prints the I<initial working directory> of a view by examining its
-config spec. If the conventional string C<##:Source: I<dir>> is present
-then the value of I<dir> is printed. Otherwise the first path
-found in the second field of the config spec, typically a vob tag,
-is used. If no explicit paths are present, no output is produced.
-
-=item 3. New B<-branch> flag
-
-Prints the name of the first branch selected in the config spec
-via a line like this:
-
-	C<element * .../I<branch>/LATEST>
-
-=item 4. New B<-vobs> flag
-
-Prints a list of all vob tags referenced explicitly within the
-config spec.
-
-=item 5. New B<-project> flag
-
-Prints the I<name> of the first vob tag encountered in the config spec,
-assuming the vob-naming convention C</vobs/I<name>/src> or
-C</vobs/I<name>/do> (meaning C<source vobs> and C<derived-object> vobs
-respectively).
-
-=item 6. New B<-promote> flag
-
-Prints the name of the I<backing branch> of the current config spec.
-This is the branch that local work will be merged to.
-
-=back
+New B<-expand> flag. This recursively follows all include statements in
+order to print a complete config spec.
 
 =cut
+
+##########################################################################
+## The following are unlikely to be useful in most CC environments
+## so are de-documented.
+#Lots of enhancements here, mostly in the area of config-spec parsing
+#for automation:
+#
+#=over 4
+#
+#=item 1. New B<-expand> flag
+#
+#This follows all include statements recursively in order to print a
+#complete config spec.
+#
+#=back
+#
+#=cut
+#
+#
+#=item 2. New B<-source> flag
+#
+#Prints the I<initial working directory> of a view by examining its
+#config spec. If the conventional string C<##:Source: I<dir>> is present
+#then the value of I<dir> is printed. Otherwise the first path
+#found in the second field of the config spec, typically a vob tag,
+#is used. If no explicit paths are present, no output is produced.
+#
+#=item 3. New B<-branch> flag
+#
+#Prints the name of the first branch selected in the config spec
+#via a line like this:
+#
+#	C<element * .../I<branch>/LATEST>
+#
+#=item 4. New B<-vobs> flag
+#
+#Prints a list of all vob tags referenced explicitly within the
+#config spec.
+#
+#=item 5. New B<-project> flag
+#
+#Prints the I<name> of the first vob tag encountered in the config spec,
+#assuming the vob-naming convention C</vobs/I<name>/src> or
+#C</vobs/I<name>/do> (meaning C<source vobs> and C<derived-object> vobs
+#respectively).
+#
+#=item 6. New B<-promote> flag
+#
+#Prints the name of the I<backing branch> of the current config spec.
+#This is the branch that local work will be merged to.
+##########################################################################
 
    if (/^catcs$/) {
 
@@ -349,11 +402,14 @@ This is the branch that local work will be merged to.
       # open filehandle, the second is a string which is eval-ed
       # for each line.  It can be as simple as 'print' or as
       # complex a regular expression as desired.
+      ## Originally based on a sample function called process()
+      ## given in perlfunc(1).
       sub burrow {
 	 my($input, $action) = @_;
 	 while (<$input>) {
 	    if (my($next) = /^include (.*)/) {
-	       # See Camel5 pg 79, search for 'magical'.
+	       # Read perlop(1), search for /extra builtin magic/
+	       # to understand this.
 	       local($i) = $input; $i++;
 	       print "# $_" unless $action;
 	       if (open($i, $next)) {
@@ -366,6 +422,7 @@ This is the branch that local work will be merged to.
 	 }
       }
 
+      my %Opt;
       GetOptions(\%Opt, "expand", "branch", "project", "projlist",
 			"promote=s", "source", "vobs");
       my $op;
@@ -404,7 +461,7 @@ Extended to handle the B<-dir/-rec/-all> flags.
 Extended to allow symbolic links to be "checked in" (by simply
 checking in the target of the link instead).
 
-Extended to implement a B<-diff> flag, which runs a B<ct diff -pred>
+Extended to implement a B<-diff> flag, which runs a B<I<ct diff -pred>>
 command before each checkin so the user can look at his/her changes
 before typing the comment.
 
@@ -515,7 +572,7 @@ the element back in afterwards. When B<-ci> is used in conjunction with
 B<-diff> the file will be either checked in or un-checked out depending
 on whether it was modified.
 
-Also, B<ct edit -dir> will not check anything out but will exec the
+Also, B<I<ct edit -dir>> will not check anything out but will exec the
 editor on all currently checked-out files.
 
 =cut
@@ -525,6 +582,10 @@ editor on all currently checked-out files.
       # the path to the actual element. Don't know why CC doesn't
       # do this or at least provide a -L flag.
       for (@ARGV[1..$#ARGV]) { $_ = readlink if -l && defined readlink }
+
+      push(@ARGV, CheckedInList(\@ARGV, "out|branch=s", "c|cfile=s", "cqe|nc",
+			   "reserved|unreserved|ndata|version|nwarn"))
+	 if (keys %AutoOpt);
 
       if (/^edit$/) {
 	 # Special hack - -dir/-rec execs editor on current checkouts
@@ -583,6 +644,7 @@ of all changes currently checked-out in your view with C<ct review -all>.
 =cut
 
    if (/^diff$|^review$/) {
+      my %Opt;
       my(@elems);
       my @diff_flags = ("serial_format|diff_format|window",
 			"graphical|tiny|hstack|vstack|predecessor",
@@ -631,8 +693,38 @@ of all changes currently checked-out in your view with C<ct review -all>.
       }
 
       # Change default: diff -pred -serial
-      splice(@ARGV, 1, 0, '-pred', '-serial') if @elems == 1;
+      splice(@ARGV, 1, 0, '-serial') if !grep(/^-ser$|^-dif|-col/, @ARGV);
+      splice(@ARGV, 1, 0, '-pred') if !grep(/^-pre/, @ARGV) && @elems < 2;
       last COMMAND;
+   }
+
+
+=item * CITREE
+
+New command. Takes a tree of files from normal Unix file space and
+puts them under source control in the specified VOB directory. If
+there are already elements by the same name, it checks them out and
+back in. Otherwise it runs mkelem operations as needed.
+
+B<NOTE: by default, I<citree> makes the target directory an exact
+replica of the source by removing any files from the target which don't
+exist in the source>. This is not the disaster it might seem since
+the files are still present in ClearCase, but in any case the B<I<-r>>
+flag will turn this behavior off.
+
+This is just a wrapper to the standalone B<I<citree>> program written
+by Paul Smith (psmith@BayNetworks.com). Run B<I<citree>> with no
+arguments for full details.
+
+=cut
+
+   # As of this writing, the citree program's home is
+   # "ftp://ftp.wellfleet.com/netman/users/psmith/atria/tools/".
+   # However, a not-guaranteed-to-be-identical version is supplied
+   # with this package as well.
+   if (/^citree$/) {
+      push(@ARGV, '-h') if @ARGV == 1;
+      Exec(@ARGV);
    }
 
 
@@ -650,7 +742,7 @@ elements can lead to dangerous levels of confusion - use with care!>
       Die "$Help{$_}\n" unless @ARGV > 1;
       my $retstat = 0;
       shift @ARGV;
-      my @orig = Backtick($ClearCmd, catcs);
+      my @orig = Qx($ClearCmd, catcs);
       for my $elem (@ARGV) {
 	 if (! -f $elem || -w _) {
 	    Warn "don't know how to eclipse '$elem'\n";
@@ -730,28 +822,34 @@ doesn't support modification of attributes.
 	    chomp;
 	    next if /^\s*$|^\s*#.*$/;	# ignore null and comment lines
 	    if (/\s*(\S+)\s+=\s+(.+)/) {
-	       my($attr, $val) = ($1, $2);
-	       if (defined(my $oldval = $indata{$attr})) {
+	       my($attr, $newval) = ($1, $2);
+	       my $oldval;
+	       if (defined($oldval = $indata{$attr})) {
 		  delete $indata{$attr};
 		  # Skip if data unchanged.
-		  next if $oldval eq $val;
+		  next if $oldval eq $newval;
 	       }
 	       # Figure out what type the new attype needs to be.
 	       # Sorry, didn't bother with -vtype time.
 	       if (System("$ClearCmd lstype attype:$attr >$DevNull 2>&1")) {
-		  if ($val =~ /^".*"$/) {
+		  if ($newval =~ /^".*"$/) {
 		     System($ClearCmd, qw(mkattype -nc -vty string), $attr);
-		     $val = "\\\"$val\\\"" if $Win32;
-		  } elsif ($val =~ /^[+-]?\d+$/) {
+		     $newval = "\\\"$newval\\\"" if $Win32;
+		  } elsif ($newval =~ /^[+-]?\d+$/) {
 		     System($ClearCmd, qw(mkattype -nc -vty integer), $attr);
-		  } elsif ($val =~ /^-?\d+\.?\d*$/) {
+		  } elsif ($newval =~ /^-?\d+\.?\d*$/) {
 		     System($ClearCmd, qw(mkattype -nc -vty real), $attr);
 		  } else {
 		     System($ClearCmd, qw(mkattype -nc -vty opaque), $attr);
 		  }
 	       }
-	       $retstat++
-		  if System($ClearCmd, qw(mkattr -replace), $attr, $val, $elem);
+	       if (defined($oldval)) {
+		  $retstat++ if System($ClearCmd, qw(mkattr -replace -c),
+				 "(Was: $oldval)", $attr, $newval, $elem);
+	       } else {
+		  $retstat++ if System($ClearCmd, qw(mkattr -replace),
+				 $attr, $newval, $elem);
+	       }
 	    } else {
 	       $retstat++;
 	       Warn "edattr: incorrect line format: '$_'";
@@ -797,7 +895,7 @@ flag causes it to ignore the previous comment.
       for my $elem (@ARGV) {
 	 my @input = ();
 	 if (!$opt_edcmnt_new) {
-	    @input = Backtick($ClearCmd, qw(desc -fmt %c), $elem);
+	    @input = Qx($ClearCmd, qw(desc -fmt %c), $elem);
 	    next if $?;
 	 }
 	 my $edtmp = "$TmpDir/edcmnt.$$";
@@ -865,18 +963,6 @@ results of B<find> to a B<describe -fmt>.
 	 Exec("$ClearCmd @ARGV -print |
 	       /usr/bin/xargs $ClearCmd desc -fmt '$opt_fmt'");
       }
-      last COMMAND;
-   }
-
-=item * LSCO
-
-Modified default: if no flags supplied, pass B<-cview>.
-
-=cut
-
-   if (/^lsco$/) {
-      # Change default: use lsco -cview unless other flags supplied.
-      splice(@ARGV, 1, 0, '-cview') if $#ARGV == 0;
       last COMMAND;
    }
 
@@ -950,8 +1036,8 @@ namespace to E<lt>B<username>E<gt>_*.
 Modification: if user tries to make a type in the current VOB without
 explicitly specifying -ordinary or -global, and if said VOB is
 associated with an admin VOB, then by default create the type as a
-global type in the admin VOB instead. B<In effect, this makes -global
-the default iff a suitable admin VOB exists>.
+global type in the admin VOB instead. B<I<In effect, this makes -global
+the default iff a suitable admin VOB exists>>.
 
 =item * MKBRTYPE,MKLBTYPE
 
@@ -1097,7 +1183,7 @@ for this to work, the view-profile storage area must be accessible to
 the Unix platforms (via NFS or Samba, for instance). The profile
 text is modified to replace backslashes with forward slashes, correct
 line-termination characters, and is then instantiated in the config
-spec. The B<ct synccs> command can be used to resync.
+spec. The B<I<ct synccs>> command can be used to resync.
 
 #=item 4. New I<-back> flag
 #This is an advanced topic ...
@@ -1162,7 +1248,7 @@ EOCS
       }
       push(@ARGV, $stg) if $stg;
       if ($opt_tag) {
-	 if ($ENV{LOGNAME} !~ /^$VobAdm/) {
+	 if ($VobAdm && ($ENV{LOGNAME} ne $VobAdm)) {
 	    # Policy: personal views (workspaces) should be prefixed by name
 	    Warn "personal view names should match $ENV{LOGNAME}_*\n"
 		  if ($opt_tag !~ /^$ENV{LOGNAME}_/);
@@ -1284,7 +1370,9 @@ Extended to handle the -dir/-rec/-all flags.
       splice(@ARGV, 1, 0, '-rm') unless grep /^-rm$|^-kee/, @ARGV;
 
       # Extension: handle AutoOpt flags (parsed above).
-      push(@ARGV, CheckedOutList(\@ARGV, "keep|rm|cwork")) if (keys %AutoOpt);
+      # Must unco in depth-first order!
+      push(@ARGV, sort {$b cmp $a} CheckedOutList(\@ARGV, "keep|rm|cwork"))
+	 if (keys %AutoOpt);
 
       # Similar to checkin/checkout hack.
       for (@ARGV[1..$#ARGV]) { $_ = readlink if -l && defined readlink }
@@ -1329,7 +1417,7 @@ With most perl modules, the C<.pm> code itself (the part that gets
 found via C<@INC>) is static - it's not generally modified except via
 updates of the module. Meanwhile, users write code to use the module
 and that code is fluid; they change it as they please.  This module is
-backwards from that since the B<ct> program is policy-free and thus
+backwards from that since the I<ct> program is policy-free and thus
 shouldn't need to be changed significantly.  Meanwhile, the
 B<Profile.pm> is intended to be a reflection of the local policies and
 preferences; the provided B<Profile.pm> is simply a sample of what
@@ -1338,15 +1426,15 @@ can be done.
 The B<Profile.pm> does B<not> establish a separate namespace; it operates
 within C<main::>. There did not seem to be any good reason to do so,
 since the whole point is to operate directly on the namespace provided
-by the client program B<ct>.
+by the client program I<ct>.
 
-The B<ct> program is normally expected to be used under that name,
+The I<ct> program is normally expected to be used under that name,
 which means that users running B<cleartool lsco>, for instance, will go
 around the wrapper.  However, it's also designed to allow for complete
 wrapping if desired. To do so, move C<$ATRIAHOME/bin/cleartool> to
-C<$ATRIAHOME/bin/wrapped/cleartool> and install B<ct> as
+C<$ATRIAHOME/bin/wrapped/cleartool> and install I<ct> as
 C<$ATRIAHOME/bin/cleartool>. You can continue to install/link the wrapper
-as B<ct> as well - it won't invoke the wrapper twice because it
+as I<ct> as well - it won't invoke the wrapper twice because it
 contains code to detect the presence of the moved-aside binary and run
 it.
 

@@ -22,7 +22,7 @@ use vars qw($VERSION @ISA @EXPORT_OK %EXPORT_TAGS);
 require Exporter;
 
 @ISA = qw(Exporter);
-$VERSION = '1.11';
+$VERSION = '1.13';
 
 use strict;
 
@@ -42,7 +42,7 @@ $ENV{HOME} ||= "$ENV{HOMEDRIVE}/$ENV{HOMEPATH}";
 use vars qw($Win32 $Wrapper $CCHome $ClearCmd $DevNull
 	    $Editor $TmpDir $Setuid %Vgra);
 
-@EXPORT_OK = qw(Dbg Die Warn Exec System Backtick Prompt
+@EXPORT_OK = qw(Dbg Die Warn Exec System Qx Prompt
 	        ReadOptions StripOptions RemainingOptions
 		chdir fastcwd fileparse basename dirname
 	        $Win32 $Wrapper $CCHome $ClearCmd $DevNull
@@ -175,7 +175,7 @@ sub System
    }
 }
 
-=item * Backtick(LIST)
+=item * Qx(LIST)
 
 A replacement for `cmd` with no shell needed, as suggested in Camel5.
 Also more secure in setuid usage. Made available here for use in
@@ -183,9 +183,9 @@ profiles.
 
 =cut
 
-sub Backtick
+sub Qx
 {
-   Dbg("backtick: @_", 1);
+   Dbg("Qx: @_", 1);
    # No fork() on &^&#@$ Win32.
    if ($Win32) {
       return `@_`;

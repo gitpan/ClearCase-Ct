@@ -8,12 +8,11 @@ system qw(pod2html lib/ClearCase/Ct/Profile.pm --outfile=Profile.html);
 # Hack to allow installer to choose name of front-end cmd.
 if (! -f Makefile) {
    print qq(
-      This module installs a front end to cleartool.
-      By default this program is called 'ct', because
-      that appears to be the most common alias for cleartool,
-      but it can be called whatever you like (some would
-      argue that ct is inappropriate because there's a
-      Unix utility of the same name - common alternatives
+      This module installs a front end to cleartool.  By default
+      it's called 'ct', because that appears to be the most common
+      alias for cleartool, but it can be called whatever you like
+      (some would argue that ct is inappropriate because there's a
+      Unix utility of the same name - common alternatives might
       include 'cl' and 'clt', or even just 'c').);
 
    print "\n\nWhat do you want to call the front-end program? [ct] ";
@@ -43,8 +42,8 @@ WriteMakefile(
 	  # my site-specific modifications.
 	  PREOP => 'grep /usr/local/bin cleartool.plx',
 	  DIST_DEFAULT => 'all tardist',
-	  SUFFIX => ".gz",
-	  COMPRESS => "gzip -f",
-	  POSTOP => 'ct unco -rm cleartool.plx && rm cleartool.plx.orig ||:',
+	  SUFFIX => '.gz',
+	  COMPRESS => 'gzip -f',
+	  POSTOP => q(rm -f Profile.html cleartool.plx.orig && ct unco -rm cleartool.plx ||:),
     },
 );

@@ -1,6 +1,6 @@
     <HTML> 
 	<HEAD> 
-	    <TITLE>Profile.pm - site-wide customizations for B<ct> wrapper
+	    <TITLE>Profile.pm - site-wide customizations for I<ct> wrapper
 
 </TITLE> 
 	</HEAD>
@@ -27,7 +27,7 @@
 <H1><A NAME="NAME">NAME
 
 </A></H1>
-Profile.pm - site-wide customizations for <STRONG>ct</STRONG> wrapper
+Profile.pm - site-wide customizations for <EM>ct</EM> wrapper
 
 
 <P>
@@ -37,7 +37,7 @@ Profile.pm - site-wide customizations for <STRONG>ct</STRONG> wrapper
 <H1><A NAME="VERSION">VERSION
 
 </A></H1>
-1.11
+1.13
 
 
 <P>
@@ -65,7 +65,7 @@ clearcase.
 <H1><A NAME="SUMMARY">SUMMARY
 
 </A></H1>
-Here's a quick overview of the extensions available via <STRONG>ct</STRONG> which may be of interest to users:
+Here's a quick overview of the extensions available via <STRONG><EM>ct</EM></STRONG> which may be of interest to users:
 
 
 <P>
@@ -73,20 +73,20 @@ Here's a quick overview of the extensions available via <STRONG>ct</STRONG> whic
 Many <EM>cleartool</EM> commands have been enhanced to simulate the standard flags <STRONG>-dir</STRONG>, <STRONG>-rec</STRONG>, and <STRONG>-all</STRONG>, which cause the command to operate on (respectively) all eligible
 elements in the current dir, the current dir recursively, and the current
 vob. The enhanced commands include
-<STRONG>checkin/ci</STRONG>, <STRONG>unco</STRONG>, <STRONG>diff</STRONG>, <STRONG>mkelem</STRONG>, and <STRONG>lsprivate</STRONG>. Thus you can check in all your current checkouts with <STRONG>ct ci -all</STRONG> or see the view-private files in and under the current dir with <STRONG>ct lsprivate
--rec</STRONG>. You can convert a tree of view-private data into elements with
-<STRONG>ct mkelem -rec -ci</STRONG>.
+<STRONG>checkin/ci</STRONG>, <STRONG>unco</STRONG>, <STRONG>diff</STRONG>, <STRONG>mkelem</STRONG>, and <STRONG>lsprivate</STRONG>. Thus you can check in all your current checkouts with <STRONG><EM>ct ci -all</EM></STRONG> or see the view-private files in and under the current dir with <STRONG><EM>ct lsprivate
+-rec</EM></STRONG>. You can convert a tree of view-private data into elements with
+<STRONG><EM>ct mkelem -rec -ci</EM></STRONG>.
 
 
 <P>
 
-The <STRONG>ct checkin</STRONG> command is also enhanced to take a <STRONG>-diff</STRONG> flag which prints your changes to the screen before prompting for a
+The <STRONG><EM>ct checkin</EM></STRONG> command is also enhanced to take a <STRONG>-diff</STRONG> flag which prints your changes to the screen before prompting for a
 comment.
 
 
 <P>
 
-A new command <STRONG>ct edit</STRONG> is added. This is the same as <STRONG>ct checkout</STRONG>
+A new command <STRONG><EM>ct edit</EM></STRONG> is added. This is the same as <STRONG><EM>ct checkout</EM></STRONG>
 but execs your favorite editor after checking out. It also takes a
 <STRONG>-ci</STRONG> flag which will check the file in afterwards.
 
@@ -94,28 +94,28 @@ but execs your favorite editor after checking out. It also takes a
 <P>
 
 All commands which take a <STRONG>-tag <EM>view-tag</EM></STRONG> option are enhanced to recognize the <STRONG>-me</STRONG> flag. This modifies the effect of <STRONG>-tag</STRONG> by prepending your username to the view name. E.g.  <STRONG>-tag <EM>foo</EM> -me</STRONG> is a shorthand for <STRONG>-tag <EM>&lt;username&gt;_foo</EM></STRONG>. Similarly,
-<STRONG>ct lsview -me</STRONG> will show only views whose names match the pattern
+<STRONG><EM>ct lsview -me</EM></STRONG> will show only views whose names match the pattern
 <EM>&lt;<STRONG>username</STRONG>&gt;_*</EM>.
 
 
 <P>
 
-The <STRONG>ct mkview</STRONG> command is enhanced to default the view-storage location to a standard
+The <STRONG><EM>ct mkview</EM></STRONG> command is enhanced to default the view-storage location to a standard
 place using a standard naming convention. See
 <EM>SiteProfile.pm.sample</EM> for how this is set up. Also, <STRONG>mkview</STRONG>
 recognizes the <STRONG>-me</STRONG> flag as described above. This means that making a new view can/should be
-done as <STRONG>ct mkview -tag foo -me</STRONG>.
+done as <STRONG><EM>ct mkview -tag foo -me</EM></STRONG>.
 
 
 <P>
 
-New pseudo-commands <STRONG>ct edattr</STRONG> and <STRONG>ct edcmnt</STRONG> are added. These make it easy to edit the attributes and comments,
+New pseudo-commands <STRONG><EM>ct edattr</EM></STRONG> and <STRONG><EM>ct edcmnt</EM></STRONG> are added. These make it easy to edit the attributes and comments,
 respectively, of a particular version.
 
 
 <P>
 
-A new command <STRONG>ct rmpriv</STRONG> is added, which behaves like
+A new command <STRONG><EM>ct rmpriv</EM></STRONG> is added, which behaves like
 <CODE><STRONG>rm -i `ct lsprivate -rec`</STRONG></CODE>, though <STRONG>-dir</STRONG> or <STRONG>-all</STRONG> may be substituted for <STRONG>-rec</STRONG> and <STRONG>-f</STRONG> may be passed to override <STRONG>-i</STRONG>.
 
 
@@ -136,74 +136,12 @@ available via the standard <STRONG>-h</STRONG> flag.
 <LI><STRONG><A NAME="item_CATCS">CATCS
 
 </A></STRONG>
-Lots of enhancements here, mostly in the area of config-spec parsing for
-automation:
-
-
-<P>
-
-<OL>
-<LI><STRONG><A NAME="item_New_expand_flag"> New -expand flag
-
-</A></STRONG>
-This follows all include statements recursively in order to print a
+New <STRONG>-expand</STRONG> flag. This recursively follows all include statements in order to print a
 complete config spec.
 
 
 <P>
 
-<LI><STRONG><A NAME="item_New_source_flag"> New -source flag
-
-</A></STRONG>
-Prints the <EM>initial working directory</EM> of a view by examining its config spec. If the conventional string <CODE>##:Source: <EM>dir</EM></CODE> is present then the value of <EM>dir</EM> is printed. Otherwise the first path found in the second field of the
-config spec, typically a vob tag, is used. If no explicit paths are
-present, no output is produced.
-
-
-<P>
-
-<LI><STRONG><A NAME="item_New_branch_flag"> New -branch flag
-
-</A></STRONG>
-Prints the name of the first branch selected in the config spec via a line
-like this:
-
-
-<P>
-
-<PRE>        C&lt;element * .../I&lt;branch&gt;/LATEST&gt;
-</PRE>
-
-<P>
-
-<LI><STRONG><A NAME="item_New_vobs_flag"> New -vobs flag
-
-</A></STRONG>
-Prints a list of all vob tags referenced explicitly within the config spec.
-
-
-<P>
-
-<LI><STRONG><A NAME="item_New_project_flag"> New -project flag
-
-</A></STRONG>
-Prints the <EM>name</EM> of the first vob tag encountered in the config spec, assuming the
-vob-naming convention <CODE>/vobs/<EM>name</EM>/src</CODE> or
-<CODE>/vobs/<EM>name</EM>/do</CODE> (meaning <CODE>source vobs</CODE> and <CODE>derived-object</CODE> vobs respectively).
-
-
-<P>
-
-<LI><STRONG><A NAME="item_New_promote_flag"> New -promote flag
-
-</A></STRONG>
-Prints the name of the <EM>backing branch</EM> of the current config spec. This is the branch that local work will be
-merged to.
-
-
-<P>
-
-</OL>
 <LI><STRONG><A NAME="item_CI">CI/CHECKIN
 
 </A></STRONG>
@@ -218,7 +156,7 @@ in the target of the link instead).
 
 <P>
 
-Extended to implement a <STRONG>-diff</STRONG> flag, which runs a <STRONG>ct diff -pred</STRONG>
+Extended to implement a <STRONG>-diff</STRONG> flag, which runs a <STRONG><EM>ct diff -pred</EM></STRONG>
 command before each checkin so the user can look at his/her changes before
 typing the comment.
 
@@ -252,7 +190,7 @@ it was modified.
 
 <P>
 
-Also, <STRONG>ct edit -dir</STRONG> will not check anything out but will exec the editor on all currently
+Also, <STRONG><EM>ct edit -dir</EM></STRONG> will not check anything out but will exec the editor on all currently
 checked-out files.
 
 
@@ -278,6 +216,32 @@ New convenience command: sends a context diff between current and previous
 versions to the 'pprint' program, which prints it with line numbers
 appropriate for code reviews. E.g. you could generate a listing of all
 changes currently checked-out in your view with <CODE>ct review -all</CODE>.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_CITREE">CITREE
+
+</A></STRONG>
+New command. Takes a tree of files from normal Unix file space and puts
+them under source control in the specified VOB directory. If there are
+already elements by the same name, it checks them out and back in.
+Otherwise it runs mkelem operations as needed.
+
+
+<P>
+
+<STRONG>NOTE: by default, <EM>citree</EM> makes the target directory an exact
+replica of the source by removing any files from the target which don't
+exist in the source</STRONG>. This is not the disaster it might seem since the files are still present
+in ClearCase, but in any case the <STRONG><EM>-r</EM></STRONG>
+flag will turn this behavior off.
+
+
+<P>
+
+This is just a wrapper to the standalone <STRONG><EM>citree</EM></STRONG> program written by Paul Smith <A
+HREF="MAILTO:(psmith@BayNetworks.com).">(psmith@BayNetworks.com).</A> Run <STRONG><EM>citree</EM></STRONG> with no arguments for full details.
 
 
 <P>
@@ -339,14 +303,6 @@ of <STRONG>find</STRONG> to a <STRONG>describe -fmt</STRONG>.
 
 <P>
 
-<LI><STRONG><A NAME="item_LSCO">LSCO
-
-</A></STRONG>
-Modified default: if no flags supplied, pass <STRONG>-cview</STRONG>.
-
-
-<P>
-
 <LI><STRONG><A NAME="item_LSVTREE">LSVTREE
 
 </A></STRONG>
@@ -378,8 +334,8 @@ Extended to recognize the general <STRONG>-me</STRONG> flag, restricting the sea
 Modification: if user tries to make a type in the current VOB without
 explicitly specifying -ordinary or -global, and if said VOB is associated
 with an admin VOB, then by default create the type as a global type in the
-admin VOB instead. <STRONG>In effect, this makes -global
-the default iff a suitable admin VOB exists</STRONG>.
+admin VOB instead. <STRONG><EM>In effect, this makes -global
+the default iff a suitable admin VOB exists</EM></STRONG>.
 
 
 <P>
@@ -441,7 +397,7 @@ extension allows them to be <EM>used</EM> on Unix platforms. In order for this t
 must be accessible to the Unix platforms (via NFS or Samba, for instance).
 The profile text is modified to replace backslashes with forward slashes,
 correct line-termination characters, and is then instantiated in the config
-spec. The <STRONG>ct synccs</STRONG> command can be used to resync.
+spec. The <STRONG><EM>ct synccs</EM></STRONG> command can be used to resync.
 
 
 <P>
@@ -510,7 +466,7 @@ Working on a profile is actually quite easy if you remember that within it <STRO
 
 With most perl modules, the <CODE>.pm</CODE> code itself (the part that gets found via <CODE>@INC</CODE>) is static - it's not generally modified except via updates of the module.
 Meanwhile, users write code to use the module and that code is fluid; they
-change it as they please. This module is backwards from that since the <STRONG>ct</STRONG> program is policy-free and thus shouldn't need to be changed significantly.
+change it as they please. This module is backwards from that since the <EM>ct</EM> program is policy-free and thus shouldn't need to be changed significantly.
 Meanwhile, the
 <STRONG>Profile.pm</STRONG> is intended to be a reflection of the local policies and preferences; the
 provided <STRONG>Profile.pm</STRONG> is simply a sample of what can be done.
@@ -519,16 +475,16 @@ provided <STRONG>Profile.pm</STRONG> is simply a sample of what can be done.
 <P>
 
 The <STRONG>Profile.pm</STRONG> does <STRONG>not</STRONG> establish a separate namespace; it operates within <CODE>main::</CODE>. There did not seem to be any good reason to do so, since the whole point
-is to operate directly on the namespace provided by the client program <STRONG>ct</STRONG>.
+is to operate directly on the namespace provided by the client program <EM>ct</EM>.
 
 
 <P>
 
-The <STRONG>ct</STRONG> program is normally expected to be used under that name, which means that
+The <EM>ct</EM> program is normally expected to be used under that name, which means that
 users running <STRONG>cleartool lsco</STRONG>, for instance, will go around the wrapper. However, it's also designed to
 allow for complete wrapping if desired. To do so, move <CODE>$ATRIAHOME/bin/cleartool</CODE> to
-<CODE>$ATRIAHOME/bin/wrapped/cleartool</CODE> and install <STRONG>ct</STRONG> as
-<CODE>$ATRIAHOME/bin/cleartool</CODE>. You can continue to install/link the wrapper as <STRONG>ct</STRONG> as well - it won't invoke the wrapper twice because it contains code to
+<CODE>$ATRIAHOME/bin/wrapped/cleartool</CODE> and install <EM>ct</EM> as
+<CODE>$ATRIAHOME/bin/cleartool</CODE>. You can continue to install/link the wrapper as <EM>ct</EM> as well - it won't invoke the wrapper twice because it contains code to
 detect the presence of the moved-aside binary and run it.
 
 
