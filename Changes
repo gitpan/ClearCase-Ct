@@ -52,3 +52,10 @@ Revision history for Perl extension ClearCase::Ct.
 	- simplified - remove PostOpEvalStack code.
 	  This can be more easily handled by completely
 	  wrapping the native command within Profile.pm.
+
+1.10  Fri Oct 16 19:22:25 EDT 1998
+	- broken - don't use
+
+1.11  Mon Oct 19 12:57:48 EDT 1998
+	- fixed bug introduced in 1.10 by misguided cleanup
+	  (in mkview, resulting in null config spec)

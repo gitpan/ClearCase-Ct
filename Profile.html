@@ -12,6 +12,7 @@
 <UL>
 
 	<LI><A HREF="#NAME">NAME</A>
+	<LI><A HREF="#VERSION">VERSION</A>
 	<LI><A HREF="#SYNOPSIS">SYNOPSIS</A>
 	<LI><A HREF="#SUMMARY">SUMMARY</A>
 	<LI><A HREF="#DESCRIPTION">DESCRIPTION</A>
@@ -27,6 +28,16 @@
 
 </A></H1>
 Profile.pm - site-wide customizations for <STRONG>ct</STRONG> wrapper
+
+
+<P>
+
+<P>
+<HR>
+<H1><A NAME="VERSION">VERSION
+
+</A></H1>
+1.11
 
 
 <P>
@@ -276,6 +287,11 @@ changes currently checked-out in your view with <CODE>ct review -all</CODE>.
 </A></STRONG>
 New command. <EM>Eclipse</EM>s an element by copying a view-private version over it. This is the
 dynamic-view equivalent of ``hijacking'' a file in a snapshot view.
+Typically of use if you need temporary write access to a file when the VOB
+is locked, or it's checked out reserved.  <STRONG>Eclipsing
+elements can lead to dangerous levels of confusion - use with care!</STRONG>
+
+
 
 
 <P>
@@ -368,7 +384,7 @@ the default iff a suitable admin VOB exists</STRONG>.
 
 <P>
 
-<LI><STRONG><A NAME="item_MKLBTYPE">MKLBTYPE
+<LI><STRONG><A NAME="item_MKBRTYPE">MKBRTYPE,MKLBTYPE
 
 </A></STRONG>
 Same as mkattype above.

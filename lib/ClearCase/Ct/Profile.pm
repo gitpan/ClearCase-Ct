@@ -8,7 +8,7 @@ Profile.pm - site-wide customizations for B<ct> wrapper
 
 =head1 VERSION
 
-1.10
+1.11
 
 =head1 SYNOPSIS
 
@@ -768,9 +768,9 @@ doesn't support modification of attributes.
 	       $retstat++;
 	    } else {
 	       # Don't remove the type if its vob serves as an admin vob!
-	       my(@hlinks) = grep /^<-/, `ct desc -s -ahlink AdminVOB vob:.`;
+	       my(@deps) = grep /^<-/, `$ClearCmd desc -s -ahl AdminVOB vob:.`;
 	       System($ClearCmd, 'rmtype', '-rmall', "attype:$_")
-		  if $? == 0 && ! @hlinks;
+		  if $? == 0 && ! @deps;
 	    }
 	 }
       }
@@ -953,19 +953,18 @@ associated with an admin VOB, then by default create the type as a
 global type in the admin VOB instead. B<In effect, this makes -global
 the default iff a suitable admin VOB exists>.
 
-=item * MKLBTYPE
+=item * MKBRTYPE,MKLBTYPE
 
 Same as mkattype above.
 
 =cut
 
-   if (/^mkattype$|^mklbtype$/) {
+   if (/^(mkattype|mkbrtype|mklbtype)$/) {
       if (! grep(/^-ord|^-glo|vob:/i, @ARGV)) {
-	 my $adm = `$ClearCmd desc -s -ahlink AdminVOB vob:.`;
-	 if ($? == 0 && $adm) {
-	    if ($adm =~ s/->\s+vob:(.+)/$1/) {
+	 if (my(@adms) = grep /^->/, `$ClearCmd desc -s -ahl AdminVOB vob:.`) {
+	    if (my $adm = (split(' ', $adms[0]))[1]) {
 	       chomp $adm;
-	       warn "Making global type in VOB $adm ...\n";
+	       warn "Making global type in $adm ...\n";
 	       # Save aside all possible flags for mkattype/mklbtype,
 	       # then add the vob selector to each type selector,
 	       # and put the flags back along with the new -global.
@@ -974,7 +973,7 @@ Same as mkattype above.
 			      "gt|ge|lt|le|enum|default|vtype=s",
 			      "pbranch|shared",
 			      "cqe|nc", "c|cfile=s");
-	       for (@ARGV[1..$#ARGV]) {$_ .= "\@vob:$adm"}
+	       for (@ARGV[1..$#ARGV]) {$_ .= "\@$adm"}
 	       splice(@ARGV, 1, 0, @flags, '-global');
 	    }
 	 }
@@ -1181,20 +1180,17 @@ EOCS
 	 }
       }
 
-      # Only workspaces get the config-spec initialization treatment below;
-      # for other views we stay out of the way.
-
+      # If an option was used requiring a special config spec, make the
+      # view here, then change the spec, then exit. Must be done this way
+      # because mkview provides no way to specify the initial config spec.
       # Initialize the config spec according to the supplied profile.
-      if ($opt_tag =~ /^$ENV{LOGNAME}_/) {
-	 if (System($ClearCmd, @ARGV)) {
-	    exit $?>>8;
-	 } else {
-	    my $cstmp = "$TmpDir/mkview.cs.$opt_tag";
-	    open(FH_CSTMP, ">$cstmp") || Die "$cstmp: $!";
-	    print FH_CSTMP $new_spec;
-	    close(FH_CSTMP);
-	    unlink($cstmp) unless System($0, 'setcs', '-tag', $opt_tag, $cstmp);
-	 }
+      if ($new_spec) {
+	 System($ClearCmd, @ARGV) && exit $?>>8;
+	 my $cstmp = "$TmpDir/mkview.cs.$opt_tag";
+	 open(FH_CSTMP, ">$cstmp") || Die "$cstmp: $!";
+	 print FH_CSTMP $new_spec;
+	 close(FH_CSTMP);
+	 unlink($cstmp) if !System($0, 'setcs', '-tag', $opt_tag, $cstmp);
 	 exit 0;
       }
 
