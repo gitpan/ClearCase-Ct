@@ -46,3 +46,7 @@ Revision history for Perl extension ClearCase::Ct.
 
 1.07  Wed Oct  7 17:37:58 EDT 1998
 	- fixed NT packaging problems
+
+1.08  Thu Oct  8 11:11:20 EDT 1998
+	- worked around an NT install bug (in ActiveState 5.005_02)
+	- fixed a minor bug in 'ct diff'.

@@ -3,7 +3,7 @@
 use vars qw($VERSION);
 
 # Note: this version may move independently of the one in Ct.pm.
-$VERSION = '1.07';
+$VERSION = '1.08';
 
 =head1 NAME
 
@@ -594,7 +594,7 @@ of all changes currently checked-out in your view with C<ct review -all>.
       }
 
       # Change default: diff -pred -serial
-      splice(@ARGV, 1, 0, '-pred', '-serial') if $#ARGV == 1;
+      splice(@ARGV, 1, 0, '-pred', '-serial') if @elems == 1;
       last COMMAND;
    }
 

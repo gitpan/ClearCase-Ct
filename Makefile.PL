@@ -24,7 +24,8 @@ if (! -f Makefile) {
    copy('cleartool.plx', $Name) || die "$Name: $!";
    print "Ok, it will be installed as '$Name' ...\n\n";
    if ($^O =~ /win32/i) {
-      pl2bat ct;
+      warn "pl2bat $Name ...\n";
+      system('pl2bat', $Name);
    } else {
       chmod 0555, $Name || warn "$Name: $!";
    }
